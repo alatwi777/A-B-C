@@ -103,7 +103,7 @@
             color: #555;
         }
         
-        .form-group input, .form-group select {
+        .form-group input, .form-group select, .form-group textarea {
             width: 100%;
             padding: 12px;
             border: 1px solid #ddd;
@@ -112,7 +112,7 @@
             transition: border 0.3s;
         }
         
-        .form-group input:focus, .form-group select:focus {
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
             border-color: #1a5f7a;
             outline: none;
         }
@@ -643,12 +643,21 @@
             gap: 10px;
             align-items: center;
             margin-bottom: 10px;
+            flex-wrap: wrap;
         }
         
         .grade-input-small {
-            width: 60px;
+            width: 70px;
             padding: 5px;
             text-align: center;
+        }
+        
+        .grades-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-right: 4px solid #1a5f7a;
         }
         
         /* تحسينات للاستجابة */
@@ -687,6 +696,15 @@
             
             .drawing-container {
                 height: 250px;
+            }
+            
+            .grades-control {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .grade-input-small {
+                width: 100px;
             }
         }
         
@@ -870,6 +888,10 @@
                 <div id="testInfo" class="tab-content">
                     <h2>إضافة اختبار جديد</h2>
                     
+                    <div class="grades-info">
+                        <strong>ملاحظة:</strong> سيتم حساب المجموع الكلي تلقائياً بناءً على عدد الأسئلة ودرجة كل سؤال.
+                    </div>
+                    
                     <div class="form-group">
                         <label for="testName">اسم الاختبار</label>
                         <input type="text" id="testName" placeholder="أدخل اسم الاختبار" value="الاختبار النصفي الأول">
@@ -900,14 +922,12 @@
                         <input type="number" id="questionsCount" placeholder="أدخل عدد الأسئلة" value="25" min="1" max="50">
                     </div>
                     
-                    <!-- إضافة حقول الدرجات للأسئلة الاختيارية -->
                     <div class="form-group grades-control">
-                        <label for="mcqGradePerQuestion">درجة كل سؤال اختياري:</label>
-                        <input type="number" id="mcqGradePerQuestion" value="2" min="1" max="10" class="grade-input-small">
-                        <span>درجة (الدرجة الكلية: <span id="totalMcqGrade">50</span>)</span>
+                        <label for="mcqGradePerQuestion" style="min-width: 180px;">درجة كل سؤال اختياري:</label>
+                        <input type="number" id="mcqGradePerQuestion" value="2" min="0.5" max="10" step="0.5" class="grade-input-small">
+                        <span>درجة</span>
                     </div>
                     
-                    <!-- إضافة سؤال هل يوجد سؤال مقالي -->
                     <div class="form-group">
                         <label for="hasEssayQuestion">هل يوجد سؤال مقالي؟</label>
                         <select id="hasEssayQuestion" class="form-control">
@@ -916,7 +936,6 @@
                         </select>
                     </div>
                     
-                    <!-- حقل نص السؤال المقالي (يظهر فقط إذا كانت الإجابة نعم) -->
                     <div class="form-group" id="essayQuestionField" style="display: none;">
                         <label for="essayQuestionText">نص السؤال المقالي</label>
                         <textarea id="essayQuestionText" rows="3" placeholder="اكتب نص السؤال المقالي هنا...">اكتب مقالاً عن أهمية التعليم الإلكتروني في وقتنا الحالي:</textarea>
@@ -927,19 +946,23 @@
                         <input type="number" id="essayGrade" placeholder="أدخل درجة السؤال المقالي" value="20" min="1" max="100">
                     </div>
                     
-                    <!-- حقل عدد أسئلة الصح والخطأ مع الدرجة -->
                     <div class="form-group grades-control">
-                        <label for="tfQuestionsCount">عدد أسئلة الصح والخطأ:</label>
+                        <label for="tfQuestionsCount" style="min-width: 180px;">عدد أسئلة الصح والخطأ:</label>
                         <input type="number" id="tfQuestionsCount" value="12" min="1" max="60" class="grade-input-small">
                         <label for="tfGradePerQuestion">درجة كل سؤال:</label>
-                        <input type="number" id="tfGradePerQuestion" value="1" min="1" max="10" class="grade-input-small">
-                        <span>درجة (الدرجة الكلية: <span id="totalTfGrade">12</span>)</span>
+                        <input type="number" id="tfGradePerQuestion" value="1" min="0.5" max="10" step="0.5" class="grade-input-small">
+                        <span>درجة</span>
                     </div>
                     
                     <!-- المجموع الكلي (محسوب تلقائياً) -->
-                    <div class="form-group">
-                        <label for="totalGrade">المجموع الكلي (محسوب تلقائياً)</label>
-                        <input type="number" id="totalGrade" value="82" readonly style="background-color: #f0f0f0;">
+                    <div class="form-group" style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; border-right: 4px solid #1a5f7a;">
+                        <label for="totalGrade" style="font-size: 18px; color: #1a5f7a;">المجموع الكلي (محسوب تلقائياً)</label>
+                        <input type="number" id="totalGrade" value="82" readonly style="background-color: white; font-size: 20px; font-weight: bold; text-align: center;">
+                        <div style="margin-top: 10px; font-size: 14px; color: #666;">
+                            <div>الاختيارية: <span id="totalMcqGrade">50</span> درجة</div>
+                            <div>الصح والخطأ: <span id="totalTfGrade">12</span> درجة</div>
+                            <div>المقالي: <span id="totalEssayGrade">20</span> درجة</div>
+                        </div>
                     </div>
                     
                     <button class="btn btn-success btn-full" id="saveTestInfoBtn">حفظ الاختبار</button>
@@ -973,7 +996,7 @@
                         </select>
                     </div>
                     
-                    <div id="teacherShadingSheet" class="shading-sheet">
+                    <div id="teacherShadingSheet" class="shading-sheet" style="display: none;">
                         <h3>الإجابات الصحيحة للأسئلة الاختيارية</h3>
                         <div class="questions-container" id="teacherMcqKey">
                             <!-- سيتم إنشاء مفتاح الإجابة ديناميكيًا -->
@@ -1044,7 +1067,7 @@
                         <button class="btn btn-warning" id="printBtn" style="width: auto;">طباعة النموذج</button>
                     </div>
                     
-                    <div class="print-preview" id="printContent">
+                    <div class="print-preview" id="printContent" style="display: none;">
                         <div class="print-header">
                             <h2>المملكة العربية السعودية</h2>
                             <h3>إدارة تعليم تبوك</h3>
@@ -1064,14 +1087,14 @@
                         
                         <div style="text-align: center; margin: 40px 0;">
                             <h3>هنا تكون ورقة إجابات الطالب مصححة</h3>
-                            <p>الدرجة الكلية: <span id="printTotalGrade" style="font-weight: bold; font-size: 24px;">85</span> / 100</p>
+                            <p>الدرجة الكلية: <span id="printTotalGrade" style="font-weight: bold; font-size: 24px;">85</span> / <span id="printMaxGrade">100</span></p>
                         </div>
                         
                         <div>
                             <h4>التفاصيل:</h4>
-                            <p>الأسئلة الاختيارية: <span id="printMcqScore">45</span> / 50</p>
-                            <p>أسئلة الصح والخطأ: <span id="printTfScore">20</span> / 30</p>
-                            <p id="printEssayScoreRow">السؤال المقالي: <span id="printEssayScore">20</span> / 20</p>
+                            <p>الأسئلة الاختيارية: <span id="printMcqScore">45</span> / <span id="printMcqMax">50</span></p>
+                            <p>أسئلة الصح والخطأ: <span id="printTfScore">20</span> / <span id="printTfMax">30</span></p>
+                            <p id="printEssayScoreRow">السؤال المقالي: <span id="printEssayScore">20</span> / <span id="printEssayMax">20</span></p>
                         </div>
                         
                         <div style="margin-top: 40px; text-align: left;">
@@ -1148,8 +1171,9 @@
                 </div>
                 
                 <div class="form-group grades-control">
-                    <label for="editMcqGradePerQuestion">درجة كل سؤال اختياري:</label>
-                    <input type="number" id="editMcqGradePerQuestion" value="2" min="1" max="10" class="grade-input-small">
+                    <label for="editMcqGradePerQuestion" style="min-width: 180px;">درجة كل سؤال اختياري:</label>
+                    <input type="number" id="editMcqGradePerQuestion" value="2" min="0.5" max="10" step="0.5" class="grade-input-small">
+                    <span>درجة</span>
                 </div>
                 
                 <div class="form-group">
@@ -1171,10 +1195,11 @@
                 </div>
                 
                 <div class="form-group grades-control">
-                    <label for="editTfQuestionsCount">عدد أسئلة الصح والخطأ:</label>
+                    <label for="editTfQuestionsCount" style="min-width: 180px;">عدد أسئلة الصح والخطأ:</label>
                     <input type="number" id="editTfQuestionsCount" value="12" min="1" max="60" class="grade-input-small">
                     <label for="editTfGradePerQuestion">درجة كل سؤال:</label>
-                    <input type="number" id="editTfGradePerQuestion" value="1" min="1" max="10" class="grade-input-small">
+                    <input type="number" id="editTfGradePerQuestion" value="1" min="0.5" max="10" step="0.5" class="grade-input-small">
+                    <span>درجة</span>
                 </div>
                 
                 <div class="form-group">
@@ -1236,6 +1261,7 @@
         // 4. إصلاح جميع الأزرار
         // 5. إصلاح الكتابة باللمس للطالب
         // 6. إصلاح تحميل النتائج
+        // 7. إصلاح حفظ الاختبار
 
         // تهيئة التطبيق
         document.addEventListener('DOMContentLoaded', async function() {
@@ -1254,6 +1280,9 @@
             
             // إعداد واجهة المستخدم
             setupUI();
+            
+            // تحديث المجموع الكلي للمرة الأولى
+            updateTotalGrade();
             
             showNotification("تم تحميل النظام بنجاح", "success");
         }
@@ -1692,11 +1721,14 @@
                 }
             });
             
-            // 3. زر حفظ الاختبار - مع التحسينات الجديدة
+            // 3. زر حفظ الاختبار - مع التحسينات الجديدة - الإصلاح الأساسي
             saveTestInfoBtn.addEventListener('click', async function() {
+                console.log("🔄 بدء عملية حفظ الاختبار...");
+                
+                // الحصول على القيم من الحقول
                 const testName = document.getElementById('testName').value.trim();
                 const testSubject = document.getElementById('testSubject').value.trim();
-                const testDuration = document.getElementById('testDuration').value.trim();
+                const testDuration = parseInt(document.getElementById('testDuration').value) || 60;
                 const testTeacher = document.getElementById('testTeacher').value.trim();
                 const testCodeTeacher = document.getElementById('testCodeTeacher').value.trim();
                 const questionsCount = parseInt(document.getElementById('questionsCount').value) || 25;
@@ -1708,14 +1740,35 @@
                 const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 1;
                 const totalGrade = parseFloat(document.getElementById('totalGrade').value) || 0;
                 
+                console.log("📊 بيانات الاختبار المدخلة:", {
+                    testName, testSubject, testDuration, testTeacher, testCodeTeacher,
+                    questionsCount, mcqGradePerQuestion, hasEssay, essayQuestionText,
+                    essayGrade, tfQuestionsCount, tfGradePerQuestion, totalGrade
+                });
+                
                 // التحقق من البيانات
-                if (!testName || !testSubject || !testDuration || !testTeacher || !testCodeTeacher) {
-                    showMessage(document.getElementById('testInfoMessage'), "يرجى ملء جميع الحقول", "error");
+                if (!testName || !testSubject || !testTeacher || !testCodeTeacher) {
+                    showMessage(document.getElementById('testInfoMessage'), "يرجى ملء جميع الحقول المطلوبة", "error");
                     return;
                 }
                 
-                if (questionsCount < 1 || tfQuestionsCount < 1) {
+                if (testDuration <= 0) {
+                    showMessage(document.getElementById('testInfoMessage'), "يجب أن يكون زمن الاختبار أكبر من صفر", "error");
+                    return;
+                }
+                
+                if (questionsCount <= 0 || tfQuestionsCount <= 0) {
                     showMessage(document.getElementById('testInfoMessage'), "يجب أن يكون عدد الأسئلة أكبر من صفر", "error");
+                    return;
+                }
+                
+                if (mcqGradePerQuestion <= 0 || tfGradePerQuestion <= 0) {
+                    showMessage(document.getElementById('testInfoMessage'), "يجب أن تكون درجة كل سؤال أكبر من صفر", "error");
+                    return;
+                }
+                
+                if (hasEssay === 'yes' && essayGrade <= 0) {
+                    showMessage(document.getElementById('testInfoMessage'), "يجب أن تكون درجة السؤال المقالي أكبر من صفر", "error");
                     return;
                 }
                 
@@ -1732,7 +1785,12 @@
                 // حساب المجموع الكلي
                 const mcqTotalGrade = questionsCount * mcqGradePerQuestion;
                 const tfTotalGrade = tfQuestionsCount * tfGradePerQuestion;
-                const totalGradeCalculated = mcqTotalGrade + tfTotalGrade + (hasEssay === 'yes' ? essayGrade : 0);
+                const essayTotalGrade = hasEssay === 'yes' ? essayGrade : 0;
+                const totalGradeCalculated = mcqTotalGrade + tfTotalGrade + essayTotalGrade;
+                
+                console.log("🧮 حساب الدرجات:", {
+                    mcqTotalGrade, tfTotalGrade, essayTotalGrade, totalGradeCalculated
+                });
                 
                 // إنشاء كائن الاختبار
                 const newTest = {
@@ -1755,43 +1813,70 @@
                     status: "active"
                 };
                 
-                // إضافة للقائمة المحلية
-                appState.savedTests.push(newTest);
-                appState.currentTest = newTest;
-                saveToLocalStorage('firebase_tests', appState.savedTests);
+                console.log("💾 كائن الاختبار الجديد:", newTest);
                 
-                // محاولة الحفظ في Firebase إن كان هناك اتصال
-                if (appState.isOnline) {
-                    try {
-                        await db.collection('tests').doc(testId).set(newTest);
-                        showMessage(document.getElementById('testInfoMessage'), "✅ تم حفظ الاختبار بنجاح ومزامنته مع السحابة", "success");
-                    } catch (error) {
-                        console.error("❌ خطأ في حفظ الاختبار في Firebase:", error);
-                        showMessage(document.getElementById('testInfoMessage'), "✅ تم حفظ الاختبار محلياً، وسيتم المزامنة لاحقاً", "warning");
+                try {
+                    // إضافة للقائمة المحلية
+                    appState.savedTests.push(newTest);
+                    appState.currentTest = newTest;
+                    saveToLocalStorage('firebase_tests', appState.savedTests);
+                    
+                    console.log("✅ تم حفظ الاختبار محلياً");
+                    
+                    // محاولة الحفظ في Firebase إن كان هناك اتصال
+                    if (appState.isOnline) {
+                        try {
+                            await db.collection('tests').doc(testId).set(newTest);
+                            console.log("✅ تم حفظ الاختبار في Firebase");
+                            showMessage(document.getElementById('testInfoMessage'), "✅ تم حفظ الاختبار بنجاح ومزامنته مع السحابة", "success");
+                        } catch (error) {
+                            console.error("❌ خطأ في حفظ الاختبار في Firebase:", error);
+                            showMessage(document.getElementById('testInfoMessage'), "✅ تم حفظ الاختبار محلياً، وسيتم المزامنة لاحقاً", "warning");
+                        }
+                    } else {
+                        showMessage(document.getElementById('testInfoMessage'), "✅ تم حفظ الاختبار محلياً، وسيتم المزامنة عند عودة الاتصال", "info");
                     }
-                } else {
-                    showMessage(document.getElementById('testInfoMessage'), "✅ تم حفظ الاختبار محلياً، وسيتم المزامنة عند عودة الاتصال", "info");
+                    
+                    // تحديث الواجهة
+                    updateSavedTestsList();
+                    loadTestsForAnswerKey();
+                    loadTestsForResults();
+                    
+                    // مسح الحقول بعد الحفظ
+                    document.getElementById('testName').value = "";
+                    document.getElementById('testSubject').value = "";
+                    document.getElementById('testDuration').value = "60";
+                    document.getElementById('testTeacher').value = "";
+                    document.getElementById('testCodeTeacher').value = "";
+                    document.getElementById('questionsCount').value = "25";
+                    document.getElementById('mcqGradePerQuestion').value = "2";
+                    document.getElementById('hasEssayQuestion').value = "no";
+                    document.getElementById('essayQuestionText').value = "";
+                    document.getElementById('essayGrade').value = "20";
+                    document.getElementById('tfQuestionsCount').value = "12";
+                    document.getElementById('tfGradePerQuestion').value = "1";
+                    
+                    // إخفاء حقول المقالي
+                    document.getElementById('essayQuestionField').style.display = 'none';
+                    document.getElementById('essayGradeField').style.display = 'none';
+                    
+                    // تحديث المجموع الكلي
+                    updateTotalGrade();
+                    
+                    // إظهار الرسالة
+                    document.getElementById('testInfoMessage').style.display = 'block';
+                    
+                    // إخفاء الرسالة بعد 5 ثوان
+                    setTimeout(() => {
+                        document.getElementById('testInfoMessage').style.display = 'none';
+                    }, 5000);
+                    
+                    showNotification("تم حفظ الاختبار بنجاح", "success");
+                    
+                } catch (error) {
+                    console.error("❌ خطأ غير متوقع في حفظ الاختبار:", error);
+                    showMessage(document.getElementById('testInfoMessage'), "حدث خطأ غير متوقع أثناء حفظ الاختبار", "error");
                 }
-                
-                // تحديث الواجهة
-                updateSavedTestsList();
-                loadTestsForAnswerKey();
-                loadTestsForResults();
-                
-                // إعادة تعيين الحقول
-                document.getElementById('testName').value = "";
-                document.getElementById('testSubject').value = "";
-                document.getElementById('testDuration').value = "";
-                document.getElementById('testTeacher').value = "";
-                document.getElementById('testCodeTeacher').value = "";
-                document.getElementById('questionsCount').value = "25";
-                document.getElementById('hasEssayQuestion').value = "no";
-                document.getElementById('tfQuestionsCount').value = "12";
-                
-                // إخفاء الرسالة بعد 5 ثوان
-                setTimeout(() => {
-                    document.getElementById('testInfoMessage').style.display = 'none';
-                }, 5000);
             });
             
             // 4. زر حفظ مفتاح الإجابة - إصلاح كامل
@@ -2218,6 +2303,9 @@
                     document.getElementById('editTestModal').style.display = 'none';
                 }
             });
+            
+            // تهيئة حقول السؤال المقالي
+            updateTotalGrade();
         }
         
         // ===== وظائف المساعدة =====
@@ -2236,9 +2324,10 @@
             const essayTotal = hasEssay ? essayGrade : 0;
             const total = mcqTotal + tfTotal + essayTotal;
             
-            document.getElementById('totalMcqGrade').textContent = mcqTotal;
-            document.getElementById('totalTfGrade').textContent = tfTotal;
-            document.getElementById('totalGrade').value = total;
+            document.getElementById('totalMcqGrade').textContent = mcqTotal.toFixed(1);
+            document.getElementById('totalTfGrade').textContent = tfTotal.toFixed(1);
+            document.getElementById('totalEssayGrade').textContent = essayTotal.toFixed(1);
+            document.getElementById('totalGrade').value = total.toFixed(1);
         }
         
         // تحديث المجموع الكلي في نموذج التعديل
@@ -2255,7 +2344,7 @@
             const essayTotal = hasEssay ? essayGrade : 0;
             const total = mcqTotal + tfTotal + essayTotal;
             
-            document.getElementById('editTotalGrade').value = total;
+            document.getElementById('editTotalGrade').value = total.toFixed(1);
         }
         
         // دالة تسجيل الدخول
@@ -2480,7 +2569,10 @@
         // تحميل مفتاح الإجابة لاختبار محدد
         function loadAnswerKeyForTest(testId) {
             const test = appState.savedTests.find(t => t.id === testId);
-            if (!test) return;
+            if (!test) {
+                document.getElementById('teacherShadingSheet').style.display = 'none';
+                return;
+            }
             
             appState.currentTest = test;
             
@@ -2497,6 +2589,8 @@
             if (appState.answerKey.testId === testId) {
                 loadSavedAnswerKey();
             }
+            
+            document.getElementById('teacherShadingSheet').style.display = 'block';
         }
         
         // تهيئة مفتاح الإجابة
@@ -2816,10 +2910,19 @@
             // إذا كان هناك اختبار محدد، استخدمه
             const test = appState.currentTest || appState.savedTests[0];
             
+            if (!test) {
+                showNotification("لا يوجد اختبار محدد", "error");
+                return;
+            }
+            
             document.getElementById('printStudentName').textContent = student.name;
-            document.getElementById('printSubject').textContent = test ? test.subject : "الرياضيات";
-            document.getElementById('printTestName').textContent = test ? test.name : "الاختبار النصفي";
+            document.getElementById('printSubject').textContent = test.subject;
+            document.getElementById('printTestName').textContent = test.name;
             document.getElementById('printTestDate').textContent = new Date().toLocaleDateString('ar-SA');
+            document.getElementById('printMaxGrade').textContent = test.totalGrade;
+            document.getElementById('printMcqMax').textContent = test.mcqCount * test.mcqGradePerQuestion;
+            document.getElementById('printTfMax').textContent = test.tfCount * test.tfGradePerQuestion;
+            document.getElementById('printEssayMax').textContent = test.essayGrade;
             
             if (test) {
                 const result = appState.results.find(r => r.studentId === student.civilId && r.testId === test.id);
@@ -2853,6 +2956,8 @@
             }
             
             document.getElementById('printCorrectionDate').textContent = new Date().toLocaleDateString('ar-SA');
+            
+            document.getElementById('printContent').style.display = 'block';
             
             showNotification("✅ تم إنشاء نموذج الطباعة بنجاح", "success");
         }
@@ -2943,6 +3048,7 @@
                 
                 const test = appState.savedTests.find(t => t.id === result.testId);
                 const hasEssay = test ? test.hasEssay : false;
+                const maxEssayGrade = test ? test.essayGrade : 25;
                 
                 const row = document.createElement('tr');
                 
@@ -2955,7 +3061,7 @@
                     <td>${result.totalScore || 0}</td>
                     <td>
                         ${hasEssay ? 
-                            `<input type="number" class="grade-input" value="${result.essayGrade || 0}" min="0" max="${test ? test.essayGrade : 25}" data-result-id="${result.id}">
+                            `<input type="number" class="grade-input" value="${result.essayGrade || 0}" min="0" max="${maxEssayGrade}" data-result-id="${result.id}">
                             <button class="btn btn-success btn-small" onclick="saveEssayGrade('${result.id}')">حفظ</button>` :
                             '<span style="color: #666;">لا يوجد</span>'
                         }
@@ -3111,7 +3217,7 @@
             const testId = document.getElementById('editTestId').value;
             const name = document.getElementById('editTestName').value.trim();
             const subject = document.getElementById('editTestSubject').value.trim();
-            const duration = document.getElementById('editTestDuration').value.trim();
+            const duration = parseInt(document.getElementById('editTestDuration').value) || 60;
             const teacher = document.getElementById('editTestTeacher').value.trim();
             const code = document.getElementById('editTestCode').value.trim();
             const mcqCount = parseInt(document.getElementById('editQuestionsCount').value) || 25;
@@ -3123,13 +3229,28 @@
             const tfGradePerQuestion = parseFloat(document.getElementById('editTfGradePerQuestion').value) || 1;
             const totalGrade = parseFloat(document.getElementById('editTotalGrade').value) || 0;
             
-            if (!name || !subject || !duration || !teacher || !code) {
-                showNotification("يرجى ملء جميع الحقول", "error");
+            if (!name || !subject || !teacher || !code) {
+                showNotification("يرجى ملء جميع الحقول المطلوبة", "error");
                 return;
             }
             
-            if (mcqCount < 1 || tfCount < 1) {
+            if (duration <= 0) {
+                showNotification("يجب أن يكون زمن الاختبار أكبر من صفر", "error");
+                return;
+            }
+            
+            if (mcqCount <= 0 || tfCount <= 0) {
                 showNotification("يجب أن يكون عدد الأسئلة أكبر من صفر", "error");
+                return;
+            }
+            
+            if (mcqGradePerQuestion <= 0 || tfGradePerQuestion <= 0) {
+                showNotification("يجب أن تكون درجة كل سؤال أكبر من صفر", "error");
+                return;
+            }
+            
+            if (hasEssay === 'yes' && essayGrade <= 0) {
+                showNotification("يجب أن تكون درجة السؤال المقالي أكبر من صفر", "error");
                 return;
             }
             
@@ -3142,6 +3263,12 @@
                 showNotification("كود الاختبار هذا مستخدم مسبقاً في اختبار آخر", "error");
                 return;
             }
+            
+            // حساب المجموع الكلي
+            const mcqTotalGrade = mcqCount * mcqGradePerQuestion;
+            const tfTotalGrade = tfCount * tfGradePerQuestion;
+            const essayTotalGrade = hasEssay === 'yes' ? essayGrade : 0;
+            const totalGradeCalculated = mcqTotalGrade + tfTotalGrade + essayTotalGrade;
             
             const updatedTest = {
                 ...appState.savedTests[testIndex],
@@ -3157,7 +3284,7 @@
                 hasEssay: hasEssay === 'yes',
                 essayQuestionText: hasEssay === 'yes' ? essayQuestionText : '',
                 essayGrade: hasEssay === 'yes' ? essayGrade : 0,
-                totalGrade: totalGrade,
+                totalGrade: totalGradeCalculated,
                 updatedAt: new Date().toISOString()
             };
             
@@ -3179,7 +3306,7 @@
                         hasEssay: hasEssay === 'yes',
                         essayQuestionText: hasEssay === 'yes' ? essayQuestionText : '',
                         essayGrade: hasEssay === 'yes' ? essayGrade : 0,
-                        totalGrade: totalGrade,
+                        totalGrade: totalGradeCalculated,
                         updatedAt: new Date().toISOString()
                     });
                 } catch (error) {
@@ -3365,6 +3492,12 @@
                 document.getElementById('printEssayScore').textContent = result.essayGrade || 0;
                 document.getElementById('printCorrectionDate').textContent = new Date().toLocaleDateString('ar-SA');
                 
+                // تعيين القيم القصوى
+                document.getElementById('printMaxGrade').textContent = test.totalGrade;
+                document.getElementById('printMcqMax').textContent = test.mcqCount * test.mcqGradePerQuestion;
+                document.getElementById('printTfMax').textContent = test.tfCount * test.tfGradePerQuestion;
+                document.getElementById('printEssayMax').textContent = test.essayGrade;
+                
                 // إظهار أو إخفاء سطر السؤال المقالي
                 const essayRow = document.getElementById('printEssayScoreRow');
                 if (test.hasEssay) {
@@ -3376,7 +3509,10 @@
                 document.querySelector('.tab-btn[data-tab="printPreview"]').click();
                 
                 setTimeout(() => {
-                    window.print();
+                    document.getElementById('printContent').style.display = 'block';
+                    setTimeout(() => {
+                        window.print();
+                    }, 500);
                 }, 500);
             }
         }
