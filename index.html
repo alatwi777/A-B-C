@@ -1248,21 +1248,9 @@
             results: [],
             editingStudentId: null,
             editingTestId: null,
-            isOnline: navigator.onLine,
-            listeners: [],
-            unsubscribeFunctions: []
+            isOnline: navigator.onLine
         };
         
-        // ===== الإصلاحات الرئيسية =====
-        
-        // 1. إصلاح المزامنة بين الأجهزة
-        // 2. إصلاح استيراد Excel
-        // 3. إصلاح حفظ البيانات
-        // 4. إصلاح جميع الأزرار
-        // 5. إصلاح الكتابة باللمس للطالب
-        // 6. إصلاح تحميل النتائج
-        // 7. إصلاح حفظ الاختبار
-
         // تهيئة التطبيق
         document.addEventListener('DOMContentLoaded', async function() {
             await initApp();
@@ -1274,9 +1262,6 @@
             
             // تحميل البيانات المحلية
             await loadLocalData();
-            
-            // الاتصال المباشر بـ Firebase للمزامنة في الوقت الفعلي
-            await setupRealtimeSync();
             
             // إعداد واجهة المستخدم
             setupUI();
@@ -1297,9 +1282,6 @@
                     statusElement.textContent = "✓ متصل بالإنترنت";
                     statusElement.className = "connection-status online";
                     showNotification("تم استعادة الاتصال بالإنترنت", "success");
-                    
-                    // مزامنة البيانات المحلية مع Firebase
-                    setTimeout(syncLocalDataWithFirebase, 1000);
                 } else {
                     statusElement.textContent = "✗ غير متصل بالإنترنت";
                     statusElement.className = "connection-status offline";
@@ -1350,188 +1332,11 @@
             }
         }
         
-        // إعداد المزامنة في الوقت الفعلي مع Firebase
-        async function setupRealtimeSync() {
-            if (!appState.isOnline) {
-                console.log("⚠️ لا يوجد اتصال بالإنترنت، سيتم العمل محلياً");
-                return;
-            }
-            
-            try {
-                // إلغاء أي مشتركين سابقين
-                appState.unsubscribeFunctions.forEach(unsubscribe => unsubscribe());
-                appState.unsubscribeFunctions = [];
-                
-                // 1. المزامنة الفورية للطلاب
-                const studentsUnsubscribe = db.collection('students')
-                    .onSnapshot((snapshot) => {
-                        console.log("🔄 تحديث بيانات الطلاب من Firebase");
-                        
-                        snapshot.docChanges().forEach((change) => {
-                            const studentData = { id: change.doc.id, ...change.doc.data() };
-                            
-                            if (change.type === 'added' || change.type === 'modified') {
-                                // تحديث أو إضافة الطالب
-                                const existingIndex = appState.students.findIndex(s => s.id === studentData.id);
-                                if (existingIndex >= 0) {
-                                    appState.students[existingIndex] = studentData;
-                                } else {
-                                    appState.students.push(studentData);
-                                }
-                            } else if (change.type === 'removed') {
-                                // حذف الطالب
-                                appState.students = appState.students.filter(s => s.id !== studentData.id);
-                            }
-                        });
-                        
-                        // حفظ محلياً وتحديث الواجهة
-                        saveToLocalStorage('firebase_students', appState.students);
-                        if (appState.userType === 'teacher') {
-                            updateStudentsTable();
-                        }
-                    }, (error) => {
-                        console.error("❌ خطأ في مزامنة الطلاب:", error);
-                    });
-                
-                appState.unsubscribeFunctions.push(studentsUnsubscribe);
-                
-                // 2. المزامنة الفورية للاختبارات
-                const testsUnsubscribe = db.collection('tests')
-                    .onSnapshot((snapshot) => {
-                        console.log("🔄 تحديث بيانات الاختبارات من Firebase");
-                        
-                        snapshot.docChanges().forEach((change) => {
-                            const testData = { id: change.doc.id, ...change.doc.data() };
-                            
-                            if (change.type === 'added' || change.type === 'modified') {
-                                const existingIndex = appState.savedTests.findIndex(t => t.id === testData.id);
-                                if (existingIndex >= 0) {
-                                    appState.savedTests[existingIndex] = testData;
-                                } else {
-                                    appState.savedTests.push(testData);
-                                }
-                            } else if (change.type === 'removed') {
-                                appState.savedTests = appState.savedTests.filter(t => t.id !== testData.id);
-                            }
-                        });
-                        
-                        saveToLocalStorage('firebase_tests', appState.savedTests);
-                        if (appState.userType === 'teacher') {
-                            updateSavedTestsList();
-                            loadTestsForAnswerKey();
-                            loadTestsForResults();
-                        }
-                    }, (error) => {
-                        console.error("❌ خطأ في مزامنة الاختبارات:", error);
-                    });
-                
-                appState.unsubscribeFunctions.push(testsUnsubscribe);
-                
-                // 3. المزامنة الفورية لمفتاح الإجابة
-                const answerKeyUnsubscribe = db.collection('answerKeys')
-                    .onSnapshot((snapshot) => {
-                        console.log("🔄 تحديث مفتاح الإجابة من Firebase");
-                        
-                        if (!snapshot.empty) {
-                            const doc = snapshot.docs[0];
-                            appState.answerKey = { id: doc.id, ...doc.data() };
-                            saveToLocalStorage('firebase_answerKey', appState.answerKey);
-                            
-                            if (appState.userType === 'teacher') {
-                                loadSavedAnswerKey();
-                            }
-                        }
-                    }, (error) => {
-                        console.error("❌ خطأ في مزامنة مفتاح الإجابة:", error);
-                    });
-                
-                appState.unsubscribeFunctions.push(answerKeyUnsubscribe);
-                
-                // 4. المزامنة الفورية للنتائج
-                const resultsUnsubscribe = db.collection('results')
-                    .onSnapshot((snapshot) => {
-                        console.log("🔄 تحديث النتائج من Firebase");
-                        
-                        snapshot.docChanges().forEach((change) => {
-                            const resultData = { id: change.doc.id, ...change.doc.data() };
-                            
-                            if (change.type === 'added' || change.type === 'modified') {
-                                const existingIndex = appState.results.findIndex(r => r.id === resultData.id);
-                                if (existingIndex >= 0) {
-                                    appState.results[existingIndex] = resultData;
-                                } else {
-                                    appState.results.push(resultData);
-                                }
-                            } else if (change.type === 'removed') {
-                                appState.results = appState.results.filter(r => r.id !== resultData.id);
-                            }
-                        });
-                        
-                        saveToLocalStorage('firebase_results', appState.results);
-                        if (appState.userType === 'teacher') {
-                            updateResultsTable();
-                        }
-                    }, (error) => {
-                        console.error("❌ خطأ في مزامنة النتائج:", error);
-                    });
-                
-                appState.unsubscribeFunctions.push(resultsUnsubscribe);
-                
-                console.log("✅ تم إعداد المزامنة الفورية مع Firebase");
-            } catch (error) {
-                console.error("❌ خطأ في إعداد المزامنة:", error);
-            }
-        }
-        
-        // مزامنة البيانات المحلية مع Firebase
-        async function syncLocalDataWithFirebase() {
-            if (!appState.isOnline) return;
-            
-            console.log("🔄 جاري مزامنة البيانات المحلية مع Firebase...");
-            
-            // 1. مزامنة الطلاب المحليين مع Firebase
-            for (const student of appState.students) {
-                try {
-                    await db.collection('students').doc(student.id).set(student, { merge: true });
-                } catch (error) {
-                    console.error(`❌ خطأ في مزامنة الطالب ${student.id}:`, error);
-                }
-            }
-            
-            // 2. مزامنة الاختبارات المحلية مع Firebase
-            for (const test of appState.savedTests) {
-                try {
-                    await db.collection('tests').doc(test.id).set(test, { merge: true });
-                } catch (error) {
-                    console.error(`❌ خطأ في مزامنة الاختبار ${test.id}:`, error);
-                }
-            }
-            
-            // 3. مزامنة مفتاح الإجابة
-            if (appState.answerKey && appState.answerKey.testId) {
-                try {
-                    await db.collection('answerKeys').doc(appState.answerKey.testId).set(appState.answerKey, { merge: true });
-                } catch (error) {
-                    console.error("❌ خطأ في مزامنة مفتاح الإجابة:", error);
-                }
-            }
-            
-            // 4. مزامنة النتائج
-            for (const result of appState.results) {
-                try {
-                    await db.collection('results').doc(result.id).set(result, { merge: true });
-                } catch (error) {
-                    console.error(`❌ خطأ في مزامنة النتيجة ${result.id}:`, error);
-                }
-            }
-            
-            console.log("✅ تمت مزامنة البيانات المحلية مع Firebase");
-        }
-        
         // حفظ في التخزين المحلي
         function saveToLocalStorage(key, data) {
             try {
                 localStorage.setItem(key, JSON.stringify(data));
+                console.log(`✅ تم حفظ ${key} محلياً`);
             } catch (error) {
                 console.error(`❌ خطأ في حفظ ${key} محلياً:`, error);
             }
@@ -1567,30 +1372,26 @@
             
             // ===== إصلاح الأزرار =====
             
-            // 1. زر إضافة طالب - إصلاح كامل
+            // 1. زر إضافة طالب
             addStudentBtn.addEventListener('click', async function() {
                 const name = document.getElementById('addStudentName').value.trim();
                 const grade = document.getElementById('addStudentGrade').value.trim();
                 const civilId = document.getElementById('addStudentCivilId').value.trim();
                 const committee = document.getElementById('addStudentCommittee').value.trim();
                 
-                // التحقق من البيانات
                 if (!name || !grade || !civilId || !committee) {
                     showNotification("يرجى ملء جميع بيانات الطالب", "error");
                     return;
                 }
                 
-                // التحقق من أن السجل المدني غير مكرر
                 const existingStudent = appState.students.find(s => s.civilId === civilId);
                 if (existingStudent) {
                     showNotification("السجل المدني هذا مسجل مسبقاً", "error");
                     return;
                 }
                 
-                // إنشاء معرف فريد للطالب
                 const studentId = Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9);
                 
-                // إنشاء كائن الطالب
                 const newStudent = {
                     id: studentId,
                     name: name,
@@ -1601,11 +1402,9 @@
                     updatedAt: new Date().toISOString()
                 };
                 
-                // إضافة للقائمة المحلية
                 appState.students.push(newStudent);
                 saveToLocalStorage('firebase_students', appState.students);
                 
-                // محاولة الحفظ في Firebase إن كان هناك اتصال
                 if (appState.isOnline) {
                     try {
                         await db.collection('students').doc(studentId).set(newStudent);
@@ -1618,17 +1417,15 @@
                     showNotification("تم إضافة الطالب محلياً، وسيتم المزامنة عند عودة الاتصال", "info");
                 }
                 
-                // تحديث الجدول
                 updateStudentsTable();
                 
-                // مسح الحقول
                 document.getElementById('addStudentName').value = "";
                 document.getElementById('addStudentGrade').value = "";
                 document.getElementById('addStudentCivilId').value = "";
                 document.getElementById('addStudentCommittee').value = "";
             });
             
-            // 2. زر استيراد Excel - إصلاح كامل
+            // 2. زر استيراد Excel
             excelFileInput.addEventListener('change', async function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -1644,7 +1441,6 @@
                     let skippedCount = 0;
                     
                     for (const row of data) {
-                        // البحث عن الأعمدة المختلفة (يدعم أسماء متعددة)
                         const name = row['اسم الطالب'] || row['الاسم'] || row['name'] || row['student_name'] || 
                                    row['Student Name'] || row['اسم'] || '';
                         const grade = row['الصف'] || row['class'] || row['grade'] || row['class_name'] || 
@@ -1655,7 +1451,6 @@
                                         row['Group'] || row['مجموعة'] || 'لجنة عامة';
                         
                         if (name && civilId) {
-                            // التحقق من عدم التكرار
                             const existingStudent = appState.students.find(s => s.civilId === civilId);
                             if (!existingStudent) {
                                 const studentId = Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9);
@@ -1670,11 +1465,9 @@
                                     updatedAt: new Date().toISOString()
                                 };
                                 
-                                // إضافة محلياً
                                 appState.students.push(newStudent);
                                 importedCount++;
                                 
-                                // محاولة الحفظ في Firebase إن كان هناك اتصال
                                 if (appState.isOnline) {
                                     try {
                                         await db.collection('students').doc(studentId).set(newStudent);
@@ -1688,13 +1481,10 @@
                         }
                     }
                     
-                    // حفظ محلياً
                     saveToLocalStorage('firebase_students', appState.students);
                     
-                    // تحديث الواجهة
                     updateStudentsTable();
                     
-                    // عرض النتيجة
                     let resultMessage = `✅ تم استيراد ${importedCount} طالب بنجاح`;
                     if (skippedCount > 0) {
                         resultMessage += ` (تم تخطي ${skippedCount} طالب مكرر)`;
@@ -1705,10 +1495,8 @@
                     
                     showNotification(resultMessage, "success");
                     
-                    // إعادة تعيين حقل الملف
                     e.target.value = "";
                     
-                    // إخفاء الرسالة بعد 5 ثوان
                     setTimeout(() => {
                         importStatus.style.display = 'none';
                     }, 5000);
@@ -1721,7 +1509,7 @@
                 }
             });
             
-            // 3. زر حفظ الاختبار - مع التحسينات الجديدة - الإصلاح الأساسي
+            // 3. زر حفظ الاختبار - الإصلاح النهائي
             saveTestInfoBtn.addEventListener('click', async function() {
                 console.log("🔄 بدء عملية حفظ الاختبار...");
                 
@@ -1738,12 +1526,11 @@
                 const essayGrade = parseFloat(document.getElementById('essayGrade').value) || 20;
                 const tfQuestionsCount = parseInt(document.getElementById('tfQuestionsCount').value) || 12;
                 const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 1;
-                const totalGrade = parseFloat(document.getElementById('totalGrade').value) || 0;
                 
                 console.log("📊 بيانات الاختبار المدخلة:", {
                     testName, testSubject, testDuration, testTeacher, testCodeTeacher,
                     questionsCount, mcqGradePerQuestion, hasEssay, essayQuestionText,
-                    essayGrade, tfQuestionsCount, tfGradePerQuestion, totalGrade
+                    essayGrade, tfQuestionsCount, tfGradePerQuestion
                 });
                 
                 // التحقق من البيانات
@@ -1816,33 +1603,42 @@
                 console.log("💾 كائن الاختبار الجديد:", newTest);
                 
                 try {
-                    // إضافة للقائمة المحلية
+                    // 1. حفظ محلياً أولاً
                     appState.savedTests.push(newTest);
-                    appState.currentTest = newTest;
                     saveToLocalStorage('firebase_tests', appState.savedTests);
                     
                     console.log("✅ تم حفظ الاختبار محلياً");
                     
-                    // محاولة الحفظ في Firebase إن كان هناك اتصال
+                    // 2. محاولة الحفظ في Firebase إذا كان هناك اتصال
+                    let firebaseSuccess = false;
                     if (appState.isOnline) {
                         try {
                             await db.collection('tests').doc(testId).set(newTest);
+                            firebaseSuccess = true;
                             console.log("✅ تم حفظ الاختبار في Firebase");
-                            showMessage(document.getElementById('testInfoMessage'), "✅ تم حفظ الاختبار بنجاح ومزامنته مع السحابة", "success");
                         } catch (error) {
                             console.error("❌ خطأ في حفظ الاختبار في Firebase:", error);
-                            showMessage(document.getElementById('testInfoMessage'), "✅ تم حفظ الاختبار محلياً، وسيتم المزامنة لاحقاً", "warning");
                         }
-                    } else {
-                        showMessage(document.getElementById('testInfoMessage'), "✅ تم حفظ الاختبار محلياً، وسيتم المزامنة عند عودة الاتصال", "info");
                     }
                     
-                    // تحديث الواجهة
+                    // 3. تحديث الواجهة
                     updateSavedTestsList();
                     loadTestsForAnswerKey();
                     loadTestsForResults();
                     
-                    // مسح الحقول بعد الحفظ
+                    // 4. إظهار رسالة النجاح
+                    let successMessage = "✅ تم حفظ الاختبار بنجاح";
+                    if (firebaseSuccess) {
+                        successMessage += " ومزامنته مع السحابة";
+                    } else if (appState.isOnline) {
+                        successMessage += " محلياً، وسيتم المزامنة لاحقاً";
+                    } else {
+                        successMessage += " محلياً، وسيتم المزامنة عند عودة الاتصال";
+                    }
+                    
+                    showMessage(document.getElementById('testInfoMessage'), successMessage, "success");
+                    
+                    // 5. مسح الحقول بعد الحفظ الناجح
                     document.getElementById('testName').value = "";
                     document.getElementById('testSubject').value = "";
                     document.getElementById('testDuration').value = "60";
@@ -1856,17 +1652,14 @@
                     document.getElementById('tfQuestionsCount').value = "12";
                     document.getElementById('tfGradePerQuestion').value = "1";
                     
-                    // إخفاء حقول المقالي
+                    // 6. إخفاء حقول المقالي
                     document.getElementById('essayQuestionField').style.display = 'none';
                     document.getElementById('essayGradeField').style.display = 'none';
                     
-                    // تحديث المجموع الكلي
+                    // 7. تحديث المجموع الكلي
                     updateTotalGrade();
                     
-                    // إظهار الرسالة
-                    document.getElementById('testInfoMessage').style.display = 'block';
-                    
-                    // إخفاء الرسالة بعد 5 ثوان
+                    // 8. إخفاء الرسالة بعد 5 ثوان
                     setTimeout(() => {
                         document.getElementById('testInfoMessage').style.display = 'none';
                     }, 5000);
@@ -1879,7 +1672,7 @@
                 }
             });
             
-            // 4. زر حفظ مفتاح الإجابة - إصلاح كامل
+            // 4. زر حفظ مفتاح الإجابة
             saveAnswerKeyBtn.addEventListener('click', async function() {
                 const testId = document.getElementById('selectTestForAnswerKey').value;
                 if (!testId) {
@@ -1942,7 +1735,6 @@
                 appState.answerKey = answerKey;
                 saveToLocalStorage('firebase_answerKey', answerKey);
                 
-                // محاولة الحفظ في Firebase إن كان هناك اتصال
                 if (appState.isOnline) {
                     try {
                         await db.collection('answerKeys').doc(testId).set(answerKey);
@@ -1955,16 +1747,15 @@
                     showMessage(document.getElementById('answerKeyMessage'), "✅ تم حفظ مفتاح الإجابة محلياً، وسيتم المزامنة عند عودة الاتصال", "info");
                 }
                 
-                // إخفاء الرسالة بعد 5 ثوان
                 setTimeout(() => {
                     document.getElementById('answerKeyMessage').style.display = 'none';
                 }, 5000);
             });
             
-            // 5. زر تسجيل الدخول - إصلاح كامل
+            // 5. زر تسجيل الدخول
             loginBtn.addEventListener('click', handleLogin);
             
-            // 6. زر إنهاء الاختبار للطالب - إصلاح كامل
+            // 6. زر إنهاء الاختبار للطالب
             submitTestBtn.addEventListener('click', async function() {
                 if (!confirm("هل أنت متأكد من إنهاء الاختبار؟ لا يمكنك العودة بعد الإنهاء.")) {
                     return;
@@ -2036,7 +1827,7 @@
                 }, 2000);
             });
             
-            // 7. زر التصحيح التلقائي - إصلاح كامل
+            // 7. زر التصحيح التلقائي
             autoCorrectBtn.addEventListener('click', async function() {
                 if (!appState.currentTest) {
                     showNotification("يرجى تحميل اختبار أولاً", "error");
@@ -2061,7 +1852,6 @@
                         
                         studentAnswers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     } else {
-                        // تحميل من التخزين المحلي
                         const localAnswers = JSON.parse(localStorage.getItem('firebase_studentAnswers') || '[]');
                         studentAnswers = localAnswers.filter(answer => answer.testId === appState.currentTest.id);
                     }
@@ -2115,7 +1905,6 @@
                             correctedBy: "auto_correction"
                         };
                         
-                        // حفظ النتيجة
                         const existingIndex = appState.results.findIndex(r => r.id === resultId);
                         if (existingIndex >= 0) {
                             appState.results[existingIndex] = result;
@@ -2123,7 +1912,6 @@
                             appState.results.push(result);
                         }
                         
-                        // محاولة الحفظ في Firebase إن كان هناك اتصال
                         if (appState.isOnline) {
                             try {
                                 await db.collection('results').doc(resultId).set(result, { merge: true });
@@ -2135,10 +1923,8 @@
                         correctedCount++;
                     }
                     
-                    // حفظ النتائج محلياً
                     saveToLocalStorage('firebase_results', appState.results);
                     
-                    // تحديث الواجهة
                     updateResultsTable(appState.results.filter(r => r.testId === appState.currentTest.id));
                     
                     showNotification(`✅ تم تصحيح ${correctedCount} اختبار تلقائياً`, "success");
@@ -2165,7 +1951,6 @@
             
             // ===== التحكم في حقول السؤال المقالي =====
             
-            // التحكم في إظهار/إخفاء حقول السؤال المقالي
             const hasEssayQuestion = document.getElementById('hasEssayQuestion');
             const essayQuestionField = document.getElementById('essayQuestionField');
             const essayGradeField = document.getElementById('essayGradeField');
@@ -2248,7 +2033,6 @@
             
             // ===== إدارة النماذج =====
             
-            // النموذج المعدل للطالب
             const closeEditStudentModal = document.getElementById('closeEditStudentModal');
             const saveEditStudentBtn = document.getElementById('saveEditStudentBtn');
             const closeEditTestModal = document.getElementById('closeEditTestModal');
@@ -2366,14 +2150,12 @@
         }
         
         function handleStudentLogin(civilId, testCode, loginMessage) {
-            // البحث عن الطالب
             const student = appState.students.find(s => s.civilId === civilId);
             if (!student) {
                 showMessage(loginMessage, "السجل المدني غير مسجل في النظام", "error");
                 return;
             }
             
-            // البحث عن الاختبار بالكود
             const test = appState.savedTests.find(t => t.code === testCode && t.status === "active");
             if (!test) {
                 showMessage(loginMessage, "كود الاختبار غير صحيح أو الاختبار غير مفعل", "error");
@@ -2389,26 +2171,21 @@
             appState.userType = 'student';
             appState.currentTest = test;
             
-            // تعيين بيانات الطالب في الواجهة
             document.getElementById('studentName').textContent = student.name;
             document.getElementById('studentSubject').textContent = test.subject;
             document.getElementById('studentCommittee').textContent = student.committee;
             
-            // تهيئة ورقة التظليل للطالب مع لوحة الرسم
             initStudentShadingSheet(test.mcqCount, test.tfCount);
             
-            // إظهار أو إخفاء قسم السؤال المقالي
             const essaySection = document.getElementById('studentEssaySection');
             if (test.hasEssay) {
                 essaySection.style.display = 'block';
                 document.getElementById('essayQuestionText').textContent = test.essayQuestionText || 'اكتب إجابتك هنا...';
-                // تهيئة لوحة الرسم بعد التأكد من أن العنصر مرئي
                 setTimeout(() => initDrawingCanvas(), 100);
             } else {
                 essaySection.style.display = 'none';
             }
             
-            // الانتقال لواجهة الطالب
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('studentPage').style.display = 'block';
             
@@ -2578,7 +2355,6 @@
             
             initAnswerKey(test.mcqCount, test.tfCount);
             
-            // عرض نص السؤال المقالي للمعلم
             const teacherEssayText = document.getElementById('teacherEssayText');
             if (test.hasEssay) {
                 teacherEssayText.textContent = test.essayQuestionText || 'يتم تصحيح السؤال المقالي يدوياً من قبل المعلم في تبويب النتائج.';
@@ -2595,7 +2371,6 @@
         
         // تهيئة مفتاح الإجابة
         function initAnswerKey(mcqCount = 25, tfCount = 12) {
-            // الأسئلة الاختيارية
             const mcqContainer = document.getElementById('teacherMcqKey');
             mcqContainer.innerHTML = '';
             
@@ -2634,7 +2409,6 @@
                 });
             });
             
-            // أسئلة الصح/خطأ
             const tfContainer = document.getElementById('teacherTfKey');
             tfContainer.innerHTML = '';
             
@@ -2735,7 +2509,6 @@
                 });
             });
             
-            // أسئلة الصح/خطأ
             const tfContainer = document.getElementById('tfQuestions');
             tfContainer.innerHTML = '';
             
@@ -2768,27 +2541,24 @@
             });
         }
         
-        // تهيئة لوحة الرسم - إصلاح الكتابة باللمس
+        // تهيئة لوحة الرسم
         function initDrawingCanvas() {
             const canvas = document.getElementById('signatureCanvas');
             const container = canvas.parentElement;
             
-            // ضبط حجم الـ Canvas
             canvas.width = container.offsetWidth;
             canvas.height = container.offsetHeight;
             
-            // إنشاء Signature Pad
             signaturePad = new SignaturePad(canvas, {
                 backgroundColor: 'white',
                 penColor: 'black',
                 minWidth: 1,
                 maxWidth: 10,
-                throttle: 16, // زيادة السرعة للاستجابة الأفضل
+                throttle: 16,
                 velocityFilterWeight: 0.7,
                 minDistance: 1
             });
             
-            // إصلاح مشكلة اللمس على الأجهزة المحمولة
             canvas.addEventListener('touchstart', (e) => {
                 e.preventDefault();
             }, { passive: false });
@@ -2797,7 +2567,6 @@
                 e.preventDefault();
             }, { passive: false });
             
-            // أدوات الرسم
             const penTool = document.getElementById('penTool');
             const eraserTool = document.getElementById('eraserTool');
             const clearDrawing = document.getElementById('clearDrawing');
@@ -2845,13 +2614,11 @@
                 }
             });
             
-            // حفظ الرسم عند الانتهاء
             signaturePad.addEventListener('endStroke', function() {
                 if (signaturePad.isEmpty()) return;
                 
                 appState.studentAnswers.drawing = signaturePad.toDataURL();
                 
-                // حفظ الرسم محلياً مؤقتاً
                 try {
                     localStorage.setItem('current_drawing', appState.studentAnswers.drawing);
                 } catch (error) {
@@ -2859,7 +2626,6 @@
                 }
             });
             
-            // استعادة الرسم المحفوظ إذا كان موجوداً
             try {
                 const savedDrawing = localStorage.getItem('current_drawing');
                 if (savedDrawing && appState.currentTest && appState.currentTest.hasEssay) {
@@ -2907,7 +2673,6 @@
                 return;
             }
             
-            // إذا كان هناك اختبار محدد، استخدمه
             const test = appState.currentTest || appState.savedTests[0];
             
             if (!test) {
@@ -2932,7 +2697,6 @@
                     document.getElementById('printTfScore').textContent = result.tfScore || 0;
                     document.getElementById('printEssayScore').textContent = result.essayGrade || 0;
                     
-                    // إظهار أو إخفاء سطر السؤال المقالي
                     const essayRow = document.getElementById('printEssayScoreRow');
                     if (test.hasEssay) {
                         essayRow.style.display = 'block';
@@ -2945,7 +2709,6 @@
                     document.getElementById('printTfScore').textContent = "0";
                     document.getElementById('printEssayScore').textContent = "0";
                     
-                    // إظهار أو إخفاء سطر السؤال المقالي
                     const essayRow = document.getElementById('printEssayScoreRow');
                     if (test.hasEssay) {
                         essayRow.style.display = 'block';
@@ -2962,11 +2725,10 @@
             showNotification("✅ تم إنشاء نموذج الطباعة بنجاح", "success");
         }
         
-        // تحميل النتائج من التخزين - إصلاح المشكلة
+        // تحميل النتائج من التخزين
         function loadResultsFromStorage(testId) {
             const filteredResults = appState.results.filter(r => r.testId === testId);
             
-            // إذا لم تكن هناك نتائج محلية، حاول البحث في Firebase
             if (filteredResults.length === 0 && appState.isOnline) {
                 loadResultsFromFirebase(testId);
                 return;
@@ -3001,7 +2763,6 @@
                 
                 const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 
-                // تحديث التخزين المحلي
                 for (const result of results) {
                     const existingIndex = appState.results.findIndex(r => r.id === result.id);
                     if (existingIndex >= 0) {
@@ -3030,7 +2791,6 @@
             const resultsToShow = results || appState.results;
             const testId = appState.currentTest ? appState.currentTest.id : null;
             
-            // تصفية النتائج حسب الاختبار الحالي إذا كان محدداً
             const filteredResults = testId ? 
                 resultsToShow.filter(r => r.testId === testId) : 
                 resultsToShow;
@@ -3105,13 +2865,10 @@
         // ===== التنظيف =====
         
         function cleanup() {
-            appState.unsubscribeFunctions.forEach(unsubscribe => unsubscribe());
-            appState.unsubscribeFunctions = [];
             appState.currentUser = null;
             appState.userType = null;
             appState.currentTest = null;
             
-            // تنظيف الرسم المحفوظ مؤقتاً
             localStorage.removeItem('current_drawing');
         }
         
@@ -3199,7 +2956,6 @@
             document.getElementById('editTotalGrade').value = test.totalGrade;
             document.getElementById('editTestId').value = testId;
             
-            // إظهار أو إخفاء حقول السؤال المقالي
             const essayField = document.getElementById('editEssayQuestionField');
             const essayGradeField = document.getElementById('editEssayGradeField');
             if (test.hasEssay) {
@@ -3227,7 +2983,6 @@
             const essayGrade = parseFloat(document.getElementById('editEssayGrade').value) || 20;
             const tfCount = parseInt(document.getElementById('editTfQuestionsCount').value) || 12;
             const tfGradePerQuestion = parseFloat(document.getElementById('editTfGradePerQuestion').value) || 1;
-            const totalGrade = parseFloat(document.getElementById('editTotalGrade').value) || 0;
             
             if (!name || !subject || !teacher || !code) {
                 showNotification("يرجى ملء جميع الحقول المطلوبة", "error");
@@ -3257,14 +3012,12 @@
             const testIndex = appState.savedTests.findIndex(t => t.id === testId);
             if (testIndex === -1) return;
             
-            // التحقق من أن الكود غير مكرر (باستثناء الاختبار الحالي)
             const duplicateTest = appState.savedTests.find(t => t.code === code && t.id !== testId);
             if (duplicateTest) {
                 showNotification("كود الاختبار هذا مستخدم مسبقاً في اختبار آخر", "error");
                 return;
             }
             
-            // حساب المجموع الكلي
             const mcqTotalGrade = mcqCount * mcqGradePerQuestion;
             const tfTotalGrade = tfCount * tfGradePerQuestion;
             const essayTotalGrade = hasEssay === 'yes' ? essayGrade : 0;
@@ -3400,7 +3153,6 @@
                 document.getElementById('tfQuestionsCount').value = test.tfCount;
                 document.getElementById('tfGradePerQuestion').value = test.tfGradePerQuestion || 1;
                 
-                // تحديث حقول السؤال المقالي
                 const essayField = document.getElementById('essayQuestionField');
                 const essayGradeField = document.getElementById('essayGradeField');
                 if (test.hasEssay) {
@@ -3492,13 +3244,11 @@
                 document.getElementById('printEssayScore').textContent = result.essayGrade || 0;
                 document.getElementById('printCorrectionDate').textContent = new Date().toLocaleDateString('ar-SA');
                 
-                // تعيين القيم القصوى
                 document.getElementById('printMaxGrade').textContent = test.totalGrade;
                 document.getElementById('printMcqMax').textContent = test.mcqCount * test.mcqGradePerQuestion;
                 document.getElementById('printTfMax').textContent = test.tfCount * test.tfGradePerQuestion;
                 document.getElementById('printEssayMax').textContent = test.essayGrade;
                 
-                // إظهار أو إخفاء سطر السؤال المقالي
                 const essayRow = document.getElementById('printEssayScoreRow');
                 if (test.hasEssay) {
                     essayRow.style.display = 'block';
