@@ -8,7 +8,10 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+    <!-- مكتبة Signature Pad للرسم -->
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+    <!-- مكتبة SheetJS لقراءة ملفات Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -340,25 +343,66 @@
             border-color: #1a5f7a;
         }
         
+        /* منطقة الرسم للسؤال المقالي */
         .essay-question {
             margin-top: 30px;
             padding-top: 20px;
             border-top: 2px solid #eee;
         }
         
-        .essay-textarea {
-            width: 100%;
-            height: 200px;
-            padding: 15px;
-            border: 1px solid #ddd;
+        .drawing-container {
+            border: 2px solid #ddd;
             border-radius: 5px;
-            font-size: 16px;
+            background-color: white;
             margin-bottom: 15px;
+            position: relative;
+            height: 300px;
         }
         
-        .essay-textarea:focus {
+        #signatureCanvas {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+            touch-action: none;
+        }
+        
+        .drawing-tools {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .tool-btn {
+            padding: 8px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .tool-btn.active {
+            background-color: #1a5f7a;
+            color: white;
             border-color: #1a5f7a;
-            outline: none;
+        }
+        
+        .color-picker {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+            padding: 0;
+        }
+        
+        .line-width {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
         }
         
         .navigation-buttons {
@@ -475,7 +519,7 @@
         .test-card-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+ align-items: center;
             margin-bottom: 10px;
         }
         
@@ -554,6 +598,22 @@
             color: #666;
         }
         
+        /* مؤشر التحميل */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #1a5f7a;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
         /* تحسينات للاستجابة */
         @media (max-width: 768px) {
             .container {
@@ -586,6 +646,10 @@
                 width: 35px;
                 height: 35px;
                 font-size: 14px;
+            }
+            
+            .drawing-container {
+                height: 250px;
             }
         }
         
@@ -665,9 +729,29 @@
                     </div>
                     
                     <div class="essay-question">
-                        <h4>السؤال المقالي</h4>
-                        <p>اكتب مقالاً عن أهمية التعليم الإلكتروني في وقتنا الحالي (بحد أقصى 300 كلمة).</p>
-                        <textarea class="essay-textarea" id="essayAnswer" placeholder="أدخل إجابتك هنا..."></textarea>
+                        <h4>السؤال المقالي (استخدم قلم اللمس للإجابة)</h4>
+                        <p>اكتب مقالاً عن أهمية التعليم الإلكتروني في وقتنا الحالي:</p>
+                        
+                        <div class="drawing-tools">
+                            <button class="tool-btn active" id="penTool" data-tool="pen">✏️ قلم</button>
+                            <button class="tool-btn" id="eraserTool" data-tool="eraser">🧽 ممحاة</button>
+                            <button class="tool-btn" id="clearDrawing">🗑️ مسح الكل</button>
+                            <input type="color" class="color-picker" id="colorPicker" value="#000000" title="اختر اللون">
+                            <select class="line-width" id="lineWidth" title="سمك الخط">
+                                <option value="1">نحيف</option>
+                                <option value="3" selected>متوسط</option>
+                                <option value="5">سميك</option>
+                                <option value="10">سميك جداً</option>
+                            </select>
+                        </div>
+                        
+                        <div class="drawing-container">
+                            <canvas id="signatureCanvas"></canvas>
+                        </div>
+                        
+                        <div style="color: #666; font-size: 14px; margin-top: 10px;">
+                            💡 ملاحظة: يمكنك استخدام قلم اللمس أو الماوس للكتابة والرسم
+                        </div>
                     </div>
                     
                     <div class="navigation-buttons">
@@ -713,6 +797,12 @@
                         </label>
                     </div>
                     
+                    <div style="margin: 10px 0; color: #666;">
+                        <small>💡 يمكنك استيراد ملف Excel يحتوي على أعمدة: (الاسم، الصف، السجل المدني، اللجنة)</small>
+                    </div>
+                    
+                    <div id="importStatus" style="display: none; margin-bottom: 10px;"></div>
+                    
                     <table id="studentsTable">
                         <thead>
                             <tr>
@@ -727,6 +817,10 @@
                             <!-- سيتم ملء البيانات ديناميكيًا -->
                         </tbody>
                     </table>
+                    
+                    <div style="margin-top: 20px; color: #1a5f7a; font-weight: bold;">
+                        <span id="studentsCount">0</span> طالب مسجل في النظام
+                    </div>
                 </div>
                 
                 <!-- تبويب إضافة اختبار جديد -->
@@ -781,6 +875,10 @@
                 <!-- تبويب الاختبارات المحفوظة -->
                 <div id="savedTests" class="tab-content">
                     <h2>الاختبارات المحفوظة</h2>
+                    
+                    <div style="margin-bottom: 20px; color: #1a5f7a; font-weight: bold;">
+                        <span id="testsCount">0</span> اختبار محفوظ في النظام
+                    </div>
                     
                     <div class="saved-tests" id="savedTestsList">
                         <!-- سيتم ملء الاختبارات المحفوظة ديناميكيًا -->
@@ -1001,13 +1099,13 @@
         // Initialize Firebase
         try {
             firebase.initializeApp(firebaseConfig);
-            console.log("Firebase initialized successfully");
+            console.log("✅ Firebase initialized successfully");
         } catch (error) {
-            console.error("Firebase initialization error:", error);
+            console.error("❌ Firebase initialization error:", error);
         }
         
         const db = firebase.firestore();
-        const storage = firebase.storage();
+        let signaturePad = null;
         
         // حالات التطبيق
         const appState = {
@@ -1020,15 +1118,78 @@
             answerKey: {},
             results: [],
             editingStudentId: null,
-            editingTestId: null
+            editingTestId: null,
+            isOnline: true
         };
         
         // تهيئة التطبيق
-        document.addEventListener('DOMContentLoaded', function() {
-            initApp();
+        document.addEventListener('DOMContentLoaded', async function() {
+            await initApp();
         });
         
-        function initApp() {
+        async function initApp() {
+            // التحقق من الاتصال
+            checkOnlineStatus();
+            
+            // إضافة مستمع لحدث الاتصال
+            window.addEventListener('online', () => {
+                appState.isOnline = true;
+                showNotification("تم استعادة الاتصال بالإنترنت", "success");
+                syncOfflineData();
+            });
+            
+            window.addEventListener('offline', () => {
+                appState.isOnline = false;
+                showNotification("فقد الاتصال بالإنترنت، البيانات تحفظ محلياً", "warning");
+            });
+            
+            // تحميل البيانات من Firebase والمخزن المحلي
+            await loadAllData();
+            
+            // عناصر واجهة المستخدم
+            setupEventListeners();
+        }
+        
+        // التحقق من حالة الاتصال
+        function checkOnlineStatus() {
+            appState.isOnline = navigator.onLine;
+            if (!appState.isOnline) {
+                showNotification("أنت غير متصل بالإنترنت، البيانات تحفظ محلياً", "warning");
+            }
+        }
+        
+        // تحميل جميع البيانات
+        async function loadAllData() {
+            showLoading("جاري تحميل البيانات...");
+            
+            try {
+                // محاولة تحميل البيانات من Firebase أولاً
+                if (appState.isOnline) {
+                    await loadDataFromFirebase();
+                }
+                
+                // تحميل البيانات المحفوظة محلياً
+                loadFromLocalStorage();
+                
+                // تحديث العداد
+                updateCounters();
+                
+                hideLoading();
+                
+                if (appState.isOnline) {
+                    showNotification("تم تحميل البيانات بنجاح من السحابة", "success");
+                } else {
+                    showNotification("تم تحميل البيانات من التخزين المحلي", "info");
+                }
+            } catch (error) {
+                console.error("Error loading data:", error);
+                hideLoading();
+                showNotification("تم تحميل البيانات من التخزين المحلي", "info");
+            }
+        }
+        
+        // إعداد مستمعي الأحداث
+        function setupEventListeners() {
             // عناصر واجهة المستخدم
             const studentBtn = document.getElementById('studentBtn');
             const teacherBtn = document.getElementById('teacherBtn');
@@ -1059,9 +1220,6 @@
             const saveEditStudentBtn = document.getElementById('saveEditStudentBtn');
             const closeEditTestModal = document.getElementById('closeEditTestModal');
             const saveEditTestBtn = document.getElementById('saveEditTestBtn');
-            
-            // تحميل البيانات من Firebase
-            loadDataFromFirebase();
             
             // تبديل نوع المستخدم (طالب/معلم)
             studentBtn.addEventListener('click', function() {
@@ -1134,7 +1292,7 @@
             });
             
             // إضافة طالب جديد
-            addStudentBtn.addEventListener('click', function() {
+            addStudentBtn.addEventListener('click', async function() {
                 const name = document.getElementById('addStudentName').value.trim();
                 const grade = document.getElementById('addStudentGrade').value.trim();
                 const civilId = document.getElementById('addStudentCivilId').value.trim();
@@ -1145,6 +1303,13 @@
                     return;
                 }
                 
+                // التحقق من عدم تكرار السجل المدني
+                const existingStudent = appState.students.find(s => s.civilId === civilId);
+                if (existingStudent) {
+                    showNotification("السجل المدني هذا مسجل مسبقاً", "error");
+                    return;
+                }
+                
                 // إضافة الطالب للقائمة المحلية
                 const newStudent = {
                     id: Date.now().toString(),
@@ -1152,13 +1317,20 @@
                     grade: grade,
                     civilId: civilId,
                     committee: committee,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
+                    synced: false
                 };
                 
                 appState.students.push(newStudent);
                 
-                // حفظ في Firebase
-                saveStudentToFirebase(newStudent);
+                // حفظ في Firebase إن كان اتصال متوفر
+                if (appState.isOnline) {
+                    await saveStudentToFirebase(newStudent);
+                    newStudent.synced = true;
+                }
+                
+                // حفظ في التخزين المحلي
+                saveToLocalStorage('students', appState.students);
                 
                 // تحديث الجدول
                 updateStudentsTable();
@@ -1169,50 +1341,86 @@
                 document.getElementById('addStudentCivilId').value = "";
                 document.getElementById('addStudentCommittee').value = "";
                 
-                showNotification("تمت إضافة الطالب بنجاح", "success");
+                showNotification("تمت إضافة الطالب بنجاح" + (appState.isOnline ? "" : " (محلياً)"), "success");
             });
             
             // استيراد من Excel
-            excelFileInput.addEventListener('change', function(e) {
+            excelFileInput.addEventListener('change', async function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
                 
                 // عرض رسالة
-                showNotification("جاري معالجة الملف...", "info");
+                const importStatus = document.getElementById('importStatus');
+                importStatus.innerHTML = '<div class="loading"></div> جاري معالجة الملف...';
+                importStatus.style.display = 'block';
+                importStatus.className = 'message';
                 
-                // محاكاة استيراد البيانات من Excel
-                setTimeout(() => {
-                    // بيانات تجريبية من ملف Excel
-                    const importedStudents = [
-                        { name: "علي أحمد", grade: "الثاني ثانوي", civilId: "1111111111", committee: "لجنة 1" },
-                        { name: "مريم خالد", grade: "الأول ثانوي", civilId: "2222222222", committee: "لجنة 2" },
-                        { name: "سعيد محمد", grade: "الثالث ثانوي", civilId: "3333333333", committee: "لجنة 1" }
-                    ];
+                try {
+                    const data = await readExcelFile(file);
+                    let importedCount = 0;
                     
-                    importedStudents.forEach(student => {
-                        const newStudent = {
-                            id: Date.now().toString() + Math.random(),
-                            name: student.name,
-                            grade: student.grade,
-                            civilId: student.civilId,
-                            committee: student.committee,
-                            createdAt: new Date().toISOString()
-                        };
+                    // معالجة كل صف
+                    for (const row of data) {
+                        // البحث عن الأعمدة المناسبة
+                        const name = row['اسم الطالب'] || row['الاسم'] || row['name'] || row['student_name'] || '';
+                        const grade = row['الصف'] || row['class'] || row['grade'] || row['class_name'] || '';
+                        const civilId = row['السجل المدني'] || row['رقم الهوية'] || row['civil_id'] || row['id_number'] || '';
+                        const committee = row['اللجنة'] || row['committee'] || row['group'] || '';
                         
-                        appState.students.push(newStudent);
-                        saveStudentToFirebase(newStudent);
-                    });
+                        if (name && civilId) {
+                            // التحقق من عدم التكرار
+                            const existingStudent = appState.students.find(s => s.civilId === civilId);
+                            if (!existingStudent) {
+                                const newStudent = {
+                                    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                                    name: name,
+                                    grade: grade,
+                                    civilId: civilId,
+                                    committee: committee || 'لجنة عامة',
+                                    createdAt: new Date().toISOString(),
+                                    synced: false
+                                };
+                                
+                                appState.students.push(newStudent);
+                                importedCount++;
+                                
+                                // حفظ في Firebase إن كان اتصال متوفر
+                                if (appState.isOnline) {
+                                    await saveStudentToFirebase(newStudent);
+                                    newStudent.synced = true;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // حفظ في التخزين المحلي
+                    saveToLocalStorage('students', appState.students);
                     
                     updateStudentsTable();
-                    showNotification(`تم استيراد ${importedStudents.length} طالب بنجاح`, "success");
+                    
+                    importStatus.innerHTML = `✅ تم استيراد ${importedCount} طالب بنجاح`;
+                    importStatus.className = 'message success-message';
+                    
+                    showNotification(`تم استيراد ${importedCount} طالب بنجاح`, "success");
                     
                     // إعادة تعيين حقل الملف
                     e.target.value = "";
-                }, 1500);
+                    
+                    // إخفاء الرسالة بعد 5 ثوان
+                    setTimeout(() => {
+                        importStatus.style.display = 'none';
+                    }, 5000);
+                    
+                } catch (error) {
+                    console.error("Error importing Excel file:", error);
+                    importStatus.innerHTML = '❌ حدث خطأ في استيراد الملف. تأكد من تنسيق الملف.';
+                    importStatus.className = 'message error-message';
+                    showNotification("حدث خطأ في استيراد الملف", "error");
+                }
             });
             
             // حفظ الاختبار الجديد
-            saveTestInfoBtn.addEventListener('click', function() {
+            saveTestInfoBtn.addEventListener('click', async function() {
                 const testName = document.getElementById('testName').value.trim();
                 const testSubject = document.getElementById('testSubject').value.trim();
                 const testDuration = document.getElementById('testDuration').value.trim();
@@ -1245,14 +1453,21 @@
                     tfCount: tfQuestionsCount,
                     totalGrade: totalGrade,
                     createdAt: new Date().toISOString(),
-                    status: "active"
+                    status: "active",
+                    synced: false
                 };
                 
                 appState.savedTests.push(newTest);
                 appState.currentTest = newTest;
                 
-                // حفظ في Firebase
-                saveTestToFirebase(newTest);
+                // حفظ في Firebase إن كان اتصال متوفر
+                if (appState.isOnline) {
+                    await saveTestToFirebase(newTest);
+                    newTest.synced = true;
+                }
+                
+                // حفظ في التخزين المحلي
+                saveToLocalStorage('tests', appState.savedTests);
                 
                 // تحديث قائمة الاختبارات المحفوظة
                 updateSavedTestsList();
@@ -1263,11 +1478,18 @@
                 document.getElementById('testDuration').value = "";
                 document.getElementById('testCodeTeacher').value = "";
                 
-                showMessage(document.getElementById('testInfoMessage'), "تم حفظ الاختبار بنجاح", "success");
+                showMessage(document.getElementById('testInfoMessage'), 
+                          "تم حفظ الاختبار بنجاح" + (appState.isOnline ? "" : " (محلياً)"), 
+                          "success");
                 
                 // تحديث قوائم الاختيار
                 loadTestsForAnswerKey();
                 loadTestsForResults();
+                
+                // إخفاء الرسالة بعد 5 ثوان
+                setTimeout(() => {
+                    document.getElementById('testInfoMessage').style.display = 'none';
+                }, 5000);
             });
             
             // التصحيح التلقائي
@@ -1283,15 +1505,27 @@
                 }
                 
                 try {
-                    // تحميل إجابات الطلاب من Firebase
-                    const answersSnapshot = await db.collection('studentAnswers')
-                        .where('testId', '==', appState.currentTest.id)
-                        .get();
+                    // تحميل إجابات الطلاب من Firebase إن كان اتصال متوفر
+                    let answersSnapshot;
+                    if (appState.isOnline) {
+                        answersSnapshot = await db.collection('studentAnswers')
+                            .where('testId', '==', appState.currentTest.id)
+                            .get();
+                    } else {
+                        // تحميل من التخزين المحلي
+                        const localAnswers = JSON.parse(localStorage.getItem('studentAnswers_' + appState.currentTest.id) || '[]');
+                        answersSnapshot = { 
+                            empty: localAnswers.length === 0,
+                            forEach: (callback) => localAnswers.forEach((doc, index) => callback({ data: () => doc }))
+                        };
+                    }
                     
                     if (answersSnapshot.empty) {
                         showNotification("لا توجد إجابات لهذا الاختبار", "info");
                         return;
                     }
+                    
+                    let correctedCount = 0;
                     
                     // معالجة كل إجابة
                     answersSnapshot.forEach(async doc => {
@@ -1317,7 +1551,7 @@
                             }
                         }
                         
-                        // حفظ النتيجة في Firebase
+                        // حفظ النتيجة
                         const result = {
                             studentId: answerData.studentId,
                             studentName: answerData.studentName,
@@ -1327,17 +1561,36 @@
                             tfScore: tfScore,
                             essayGrade: 0, // سيتم تصحيحه يدوياً
                             totalScore: mcqScore + tfScore,
-                            correctedAt: new Date().toISOString()
+                            correctedAt: new Date().toISOString(),
+                            synced: false
                         };
                         
-                        // حفظ النتيجة
-                        await db.collection('results').doc(`${answerData.studentId}_${answerData.testId}`).set(result);
+                        // حفظ في Firebase إن كان اتصال متوفر
+                        if (appState.isOnline) {
+                            await db.collection('results').doc(`${answerData.studentId}_${answerData.testId}`).set(result);
+                            result.synced = true;
+                        }
+                        
+                        // إضافة للقائمة المحلية
+                        const existingIndex = appState.results.findIndex(r => 
+                            r.studentId === result.studentId && r.testId === result.testId);
+                        
+                        if (existingIndex !== -1) {
+                            appState.results[existingIndex] = result;
+                        } else {
+                            appState.results.push(result);
+                        }
+                        
+                        correctedCount++;
                     });
                     
-                    showNotification("تم التصحيح التلقائي بنجاح", "success");
+                    // حفظ في التخزين المحلي
+                    saveToLocalStorage('results', appState.results);
+                    
+                    showNotification(`تم تصحيح ${correctedCount} اختبار تلقائياً`, "success");
                     
                     // تحميل النتائج المحدثة
-                    loadResultsFromFirebase(appState.currentTest.id);
+                    loadResultsFromStorage(appState.currentTest.id);
                     
                 } catch (error) {
                     console.error("Error in auto-correct:", error);
@@ -1385,19 +1638,35 @@
                     testName: selectedTest.name,
                     mcq: mcqAnswers,
                     tf: tfAnswers,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
+                    synced: false
                 };
                 
                 appState.answerKey = answerKey;
                 
-                // حفظ في Firebase
-                try {
-                    await db.collection('answerKeys').doc(testId).set(answerKey);
-                    showMessage(document.getElementById('answerKeyMessage'), "تم حفظ مفتاح الإجابة بنجاح", "success");
-                } catch (error) {
-                    console.error("Error saving answer key:", error);
-                    showMessage(document.getElementById('answerKeyMessage'), "حدث خطأ في حفظ مفتاح الإجابة", "error");
+                // حفظ في Firebase إن كان اتصال متوفر
+                if (appState.isOnline) {
+                    try {
+                        await db.collection('answerKeys').doc(testId).set(answerKey);
+                        answerKey.synced = true;
+                        showMessage(document.getElementById('answerKeyMessage'), "تم حفظ مفتاح الإجابة بنجاح", "success");
+                    } catch (error) {
+                        console.error("Error saving answer key:", error);
+                        showMessage(document.getElementById('answerKeyMessage'), "حدث خطأ في حفظ مفتاح الإجابة", "error");
+                    }
                 }
+                
+                // حفظ في التخزين المحلي
+                saveToLocalStorage('answerKey', answerKey);
+                
+                if (!appState.isOnline) {
+                    showMessage(document.getElementById('answerKeyMessage'), "تم حفظ مفتاح الإجابة محلياً", "success");
+                }
+                
+                // إخفاء الرسالة بعد 5 ثوان
+                setTimeout(() => {
+                    document.getElementById('answerKeyMessage').style.display = 'none';
+                }, 5000);
             });
             
             // تحميل النتائج
@@ -1413,8 +1682,8 @@
                 if (selectedTest) {
                     appState.currentTest = selectedTest;
                     
-                    // تحميل النتائج من Firebase
-                    loadResultsFromFirebase(testId);
+                    // تحميل النتائج
+                    loadResultsFromStorage(testId);
                 }
             });
             
@@ -1464,56 +1733,6 @@
                 window.print();
             });
             
-            // إنهاء الاختبار (للطالب)
-            submitTestBtn.addEventListener('click', async function() {
-                if (confirm("هل أنت متأكد من إنهاء الاختبار؟ لا يمكنك العودة بعد الإنهاء.")) {
-                    // جمع إجابات الطالب
-                    const mcqAnswers = {};
-                    const tfAnswers = {};
-                    
-                    // جمع إجابات الأسئلة الاختيارية
-                    document.querySelectorAll('#mcqQuestions .mcq-option.selected').forEach(option => {
-                        const questionId = parseInt(option.dataset.questionId);
-                        mcqAnswers[questionId] = option.dataset.option;
-                    });
-                    
-                    // جمع إجابات أسئلة الصح/خطأ
-                    document.querySelectorAll('#tfQuestions .true-false-btn.selected').forEach(option => {
-                        const questionId = parseInt(option.dataset.questionId);
-                        tfAnswers[questionId] = option.dataset.answer === 'true';
-                    });
-                    
-                    // جمع إجابة السؤال المقالي
-                    const essayAnswer = document.getElementById('essayAnswer').value;
-                    
-                    // حفظ إجابات الطالب في Firebase
-                    try {
-                        const studentAnswers = {
-                            studentId: appState.currentUser.civilId,
-                            studentName: appState.currentUser.name,
-                            testId: appState.currentTest.id,
-                            testName: appState.currentTest.name,
-                            mcqAnswers: mcqAnswers,
-                            tfAnswers: tfAnswers,
-                            essayAnswer: essayAnswer,
-                            submittedAt: new Date().toISOString()
-                        };
-                        
-                        await db.collection('studentAnswers').doc(`${appState.currentUser.civilId}_${appState.currentTest.id}`).set(studentAnswers);
-                        
-                        showNotification("تم إرسال الاختبار بنجاح. سيتم تصحيح الأسئلة الموضوعية تلقائياً.", "success");
-                        
-                        // العودة إلى صفحة تسجيل الدخول بعد 2 ثانية
-                        setTimeout(() => {
-                            studentLogoutBtn.click();
-                        }, 2000);
-                    } catch (error) {
-                        console.error("Error saving student answers:", error);
-                        showNotification("حدث خطأ في حفظ الإجابات", "error");
-                    }
-                }
-            });
-            
             // إدارة النماذج
             closeEditStudentModal.addEventListener('click', () => {
                 document.getElementById('editStudentModal').style.display = 'none';
@@ -1543,86 +1762,253 @@
         // حفظ الطالب في Firebase
         async function saveStudentToFirebase(student) {
             try {
-                await db.collection('students').doc(student.id).set(student);
-                console.log("Student saved to Firebase:", student.id);
+                const studentToSave = { ...student };
+                delete studentToSave.synced;
+                await db.collection('students').doc(student.id).set(studentToSave);
+                console.log("✅ Student saved to Firebase:", student.id);
+                return true;
             } catch (error) {
-                console.error("Error saving student:", error);
-                showNotification("حدث خطأ في حفظ بيانات الطالب", "error");
+                console.error("❌ Error saving student:", error);
+                return false;
             }
         }
         
         // حفظ الاختبار في Firebase
         async function saveTestToFirebase(test) {
             try {
-                await db.collection('tests').doc(test.id).set(test);
-                console.log("Test saved to Firebase:", test.id);
+                const testToSave = { ...test };
+                delete testToSave.synced;
+                await db.collection('tests').doc(test.id).set(testToSave);
+                console.log("✅ Test saved to Firebase:", test.id);
+                return true;
             } catch (error) {
-                console.error("Error saving test:", error);
-                showNotification("حدث خطأ في حفظ الاختبار", "error");
+                console.error("❌ Error saving test:", error);
+                return false;
             }
         }
         
         // تحميل البيانات من Firebase
         async function loadDataFromFirebase() {
             try {
-                console.log("Loading data from Firebase...");
+                console.log("📥 Loading data from Firebase...");
                 
                 // تحميل الطلاب
                 const studentsSnapshot = await db.collection('students').get();
                 if (!studentsSnapshot.empty) {
-                    appState.students = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    console.log("Students loaded:", appState.students.length);
+                    const firebaseStudents = studentsSnapshot.docs.map(doc => ({ 
+                        id: doc.id, 
+                        ...doc.data(),
+                        synced: true 
+                    }));
+                    
+                    // دمج الطلاب من Firebase مع المحليين
+                    appState.students = mergeData(appState.students, firebaseStudents, 'id');
+                    console.log("📊 Students loaded:", appState.students.length);
                 }
                 
                 // تحميل الاختبارات
                 const testsSnapshot = await db.collection('tests').get();
                 if (!testsSnapshot.empty) {
-                    appState.savedTests = testsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    console.log("Tests loaded:", appState.savedTests.length);
+                    const firebaseTests = testsSnapshot.docs.map(doc => ({ 
+                        id: doc.id, 
+                        ...doc.data(),
+                        synced: true 
+                    }));
+                    
+                    // دمج الاختبارات من Firebase مع المحلية
+                    appState.savedTests = mergeData(appState.savedTests, firebaseTests, 'id');
+                    console.log("📊 Tests loaded:", appState.savedTests.length);
                 }
                 
                 // تحميل مفاتيح الإجابة
                 const answerKeysSnapshot = await db.collection('answerKeys').get();
                 if (!answerKeysSnapshot.empty) {
                     const answerKeyDoc = answerKeysSnapshot.docs[0];
-                    appState.answerKey = { id: answerKeyDoc.id, ...answerKeyDoc.data() };
-                    console.log("Answer key loaded");
+                    appState.answerKey = { 
+                        id: answerKeyDoc.id, 
+                        ...answerKeyDoc.data(),
+                        synced: true 
+                    };
+                    console.log("📊 Answer key loaded");
                 }
                 
-                // تحديث الواجهة
-                if (appState.userType === 'teacher') {
-                    updateStudentsTable();
-                    updateSavedTestsList();
+                // تحميل النتائج
+                const resultsSnapshot = await db.collection('results').limit(100).get();
+                if (!resultsSnapshot.empty) {
+                    const firebaseResults = resultsSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data(),
+                        synced: true
+                    }));
+                    
+                    appState.results = mergeData(appState.results, firebaseResults, 'id');
+                    console.log("📊 Results loaded:", appState.results.length);
                 }
                 
-                console.log("Data loaded successfully from Firebase");
+                // حفظ البيانات المدمجة محلياً
+                saveAllToLocalStorage();
+                
+                console.log("✅ Data loaded successfully from Firebase");
+                return true;
             } catch (error) {
-                console.error("Error loading data from Firebase:", error);
-                showNotification("حدث خطأ في تحميل البيانات من السحابة", "error");
+                console.error("❌ Error loading data from Firebase:", error);
+                return false;
             }
         }
         
-        // تحميل النتائج من Firebase
-        async function loadResultsFromFirebase(testId) {
-            try {
-                const resultsSnapshot = await db.collection('results')
-                    .where('testId', '==', testId)
-                    .get();
-                
-                if (resultsSnapshot.empty) {
-                    appState.results = [];
-                    updateResultsTable();
-                    showNotification("لا توجد نتائج لهذا الاختبار", "info");
-                    return;
+        // دمج البيانات (تحديث محلي مع Firebase)
+        function mergeData(localData, cloudData, key) {
+            const merged = [...localData];
+            const cloudMap = new Map(cloudData.map(item => [item[key], item]));
+            
+            // تحديث أو إضافة البيانات من السحابة
+            cloudData.forEach(cloudItem => {
+                const existingIndex = merged.findIndex(item => item[key] === cloudItem[key]);
+                if (existingIndex !== -1) {
+                    // تحديث العنصر الحالي مع الحفاظ على خاصية synced إذا كانت false
+                    const syncedStatus = merged[existingIndex].synced === false ? false : true;
+                    merged[existingIndex] = { ...cloudItem, synced: syncedStatus };
+                } else {
+                    merged.push(cloudItem);
                 }
-                
-                appState.results = resultsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                updateResultsTable();
-                showNotification(`تم تحميل ${appState.results.length} نتيجة`, "success");
+            });
+            
+            // الحفاظ على البيانات المحلية غير المتزامنة
+            localData.forEach(localItem => {
+                if (!localItem.synced && !cloudMap.has(localItem[key])) {
+                    // إذا كانت البيانات محلية وغير متزامنة ولم تكن في السحابة
+                    const existingIndex = merged.findIndex(item => item[key] === localItem[key]);
+                    if (existingIndex === -1) {
+                        merged.push(localItem);
+                    }
+                }
+            });
+            
+            return merged;
+        }
+        
+        // ===== دوال التخزين المحلي =====
+        
+        // حفظ في التخزين المحلي
+        function saveToLocalStorage(key, data) {
+            try {
+                localStorage.setItem(key, JSON.stringify(data));
+                console.log(`💾 Saved to localStorage: ${key}`);
             } catch (error) {
-                console.error("Error loading results:", error);
-                showNotification("حدث خطأ في تحميل النتائج", "error");
+                console.error(`❌ Error saving to localStorage (${key}):`, error);
             }
+        }
+        
+        // حفظ جميع البيانات محلياً
+        function saveAllToLocalStorage() {
+            saveToLocalStorage('students', appState.students);
+            saveToLocalStorage('tests', appState.savedTests);
+            saveToLocalStorage('answerKey', appState.answerKey);
+            saveToLocalStorage('results', appState.results);
+        }
+        
+        // تحميل من التخزين المحلي
+        function loadFromLocalStorage() {
+            try {
+                const students = JSON.parse(localStorage.getItem('students') || '[]');
+                const tests = JSON.parse(localStorage.getItem('tests') || '[]');
+                const answerKey = JSON.parse(localStorage.getItem('answerKey') || 'null');
+                const results = JSON.parse(localStorage.getItem('results') || '[]');
+                
+                if (students.length > 0) appState.students = students;
+                if (tests.length > 0) appState.savedTests = tests;
+                if (answerKey) appState.answerKey = answerKey;
+                if (results.length > 0) appState.results = results;
+                
+                console.log("📂 Loaded from localStorage");
+            } catch (error) {
+                console.error("❌ Error loading from localStorage:", error);
+            }
+        }
+        
+        // مزامنة البيانات المحلية مع Firebase عند استعادة الاتصال
+        async function syncOfflineData() {
+            showNotification("جاري مزامنة البيانات المحلية مع السحابة...", "info");
+            
+            let syncedCount = 0;
+            let errorCount = 0;
+            
+            // مزامنة الطلاب غير المتزامنين
+            const unsyncedStudents = appState.students.filter(s => !s.synced);
+            for (const student of unsyncedStudents) {
+                const success = await saveStudentToFirebase(student);
+                if (success) {
+                    student.synced = true;
+                    syncedCount++;
+                } else {
+                    errorCount++;
+                }
+            }
+            
+            // مزامنة الاختبارات غير المتزامنة
+            const unsyncedTests = appState.savedTests.filter(t => !t.synced);
+            for (const test of unsyncedTests) {
+                const success = await saveTestToFirebase(test);
+                if (success) {
+                    test.synced = true;
+                    syncedCount++;
+                } else {
+                    errorCount++;
+                }
+            }
+            
+            // مزامنة مفتاح الإجابة
+            if (appState.answerKey && !appState.answerKey.synced) {
+                try {
+                    await db.collection('answerKeys').doc(appState.answerKey.testId).set(appState.answerKey);
+                    appState.answerKey.synced = true;
+                    syncedCount++;
+                } catch (error) {
+                    errorCount++;
+                }
+            }
+            
+            // حفظ البيانات المحدثة محلياً
+            saveAllToLocalStorage();
+            
+            if (syncedCount > 0 || errorCount > 0) {
+                const message = errorCount > 0 
+                    ? `تمت مزامنة ${syncedCount} عنصر، فشل ${errorCount} عنصر`
+                    : `تمت مزامنة ${syncedCount} عنصر بنجاح`;
+                const type = errorCount > 0 ? "warning" : "success";
+                showNotification(message, type);
+            }
+        }
+        
+        // ===== دوال ملفات Excel =====
+        
+        // قراءة ملف Excel
+        async function readExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        
+                        // الحصول على اسم الورقة الأولى
+                        const sheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[sheetName];
+                        
+                        // تحويل إلى JSON
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                        
+                        console.log("📄 Excel data loaded:", jsonData);
+                        resolve(jsonData);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
         }
         
         // ===== دوال الواجهة =====
@@ -1676,8 +2062,9 @@
             document.getElementById('studentSubject').textContent = test.subject;
             document.getElementById('studentCommittee').textContent = student.committee;
             
-            // تهيئة ورقة التظليل للطالب
+            // تهيئة ورقة التظليل للطالب مع لوحة الرسم
             initStudentShadingSheet(test.mcqCount, test.tfCount);
+            initDrawingCanvas();
             
             // الانتقال لواجهة الطالب
             document.getElementById('loginPage').style.display = 'none';
@@ -1712,11 +2099,18 @@
             updateSavedTestsList();
             loadTestsForAnswerKey();
             loadTestsForResults();
+            updateCounters();
             
             // إذا كان هناك اختبار محفوظ، تحميل مفتاح الإجابة الخاص به
             if (appState.savedTests.length > 0 && appState.answerKey) {
                 loadAnswerKeyForTest(appState.answerKey.testId);
             }
+        }
+        
+        // تحديث العداد
+        function updateCounters() {
+            document.getElementById('studentsCount').textContent = appState.students.length;
+            document.getElementById('testsCount').textContent = appState.savedTests.length;
         }
         
         // تحديث جدول الطلاب
@@ -1740,6 +2134,8 @@
                 
                 tableBody.appendChild(row);
             });
+            
+            updateCounters();
         }
         
         // تحديث قائمة الاختبارات المحفوظة
@@ -1760,9 +2156,11 @@
                 const testCard = document.createElement('div');
                 testCard.className = 'test-card';
                 
+                const syncStatus = test.synced ? '✅' : '💾';
+                
                 testCard.innerHTML = `
                     <div class="test-card-header">
-                        <h3>${test.name} - ${test.subject}</h3>
+                        <h3>${test.name} - ${test.subject} ${syncStatus}</h3>
                         <div class="test-actions">
                             <button class="btn btn-success btn-small" onclick="sendTestToStudents('${test.id}')">إرسال للطلاب</button>
                             <button class="btn btn-info btn-small" onclick="loadTest('${test.id}')">تحميل</button>
@@ -1778,6 +2176,8 @@
                 
                 container.appendChild(testCard);
             });
+            
+            updateCounters();
         }
         
         // تحميل الاختبارات لتبويب مفتاح الإجابة
@@ -1946,7 +2346,7 @@
             }
         }
         
-        // تهيئة ورقة التظليل للطالب مع التصميم الجديد
+        // تهيئة ورقة التظليل للطالب
         function initStudentShadingSheet(mcqCount = 25, tfCount = 12) {
             // الأسئلة الاختيارية مع التصميم الدائري الجديد
             const mcqContainer = document.getElementById('mcqQuestions');
@@ -2025,27 +2425,91 @@
                     appState.studentAnswers.tf[questionId] = this.dataset.answer === 'true';
                 });
             });
+        }
+        
+        // تهيئة لوحة الرسم
+        function initDrawingCanvas() {
+            const canvas = document.getElementById('signatureCanvas');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
             
-            // حفظ إجابة السؤال المقالي
-            const essayTextarea = document.getElementById('essayAnswer');
-            essayTextarea.addEventListener('input', function() {
-                appState.studentAnswers.essay = this.value;
+            signaturePad = new SignaturePad(canvas, {
+                backgroundColor: 'white',
+                penColor: 'black',
+                minWidth: 1,
+                maxWidth: 10
+            });
+            
+            // أدوات الرسم
+            const penTool = document.getElementById('penTool');
+            const eraserTool = document.getElementById('eraserTool');
+            const clearDrawing = document.getElementById('clearDrawing');
+            const colorPicker = document.getElementById('colorPicker');
+            const lineWidth = document.getElementById('lineWidth');
+            
+            penTool.addEventListener('click', function() {
+                penTool.classList.add('active');
+                eraserTool.classList.remove('active');
+                signaturePad.penColor = colorPicker.value;
+                signaturePad.minWidth = parseInt(lineWidth.value) / 3;
+                signaturePad.maxWidth = parseInt(lineWidth.value);
+            });
+            
+            eraserTool.addEventListener('click', function() {
+                eraserTool.classList.add('active');
+                penTool.classList.remove('active');
+                signaturePad.penColor = 'white';
+                signaturePad.minWidth = 10;
+                signaturePad.maxWidth = 20;
+            });
+            
+            clearDrawing.addEventListener('click', function() {
+                if (confirm("هل تريد مسح الرسم بالكامل؟")) {
+                    signaturePad.clear();
+                }
+            });
+            
+            colorPicker.addEventListener('input', function() {
+                if (penTool.classList.contains('active')) {
+                    signaturePad.penColor = this.value;
+                }
+            });
+            
+            lineWidth.addEventListener('change', function() {
+                if (penTool.classList.contains('active')) {
+                    signaturePad.minWidth = parseInt(this.value) / 3;
+                    signaturePad.maxWidth = parseInt(this.value);
+                }
+            });
+            
+            // حفظ الرسم تلقائياً
+            signaturePad.addEventListener('endStroke', function() {
+                appState.studentAnswers.drawing = signaturePad.toDataURL();
             });
         }
         
+        // تحميل النتائج من التخزين
+        function loadResultsFromStorage(testId) {
+            const filteredResults = appState.results.filter(r => r.testId === testId);
+            updateResultsTable(filteredResults);
+            showNotification(`تم تحميل ${filteredResults.length} نتيجة`, "success");
+        }
+        
         // تحديث جدول النتائج
-        function updateResultsTable() {
+        function updateResultsTable(results = null) {
             const tableBody = document.getElementById('resultsTableBody');
             tableBody.innerHTML = '';
             
-            if (appState.results.length === 0) {
+            const resultsToShow = results || appState.results;
+            
+            if (resultsToShow.length === 0) {
                 const row = document.createElement('tr');
                 row.innerHTML = `<td colspan="9" style="text-align: center; padding: 20px;">لا توجد نتائج لعرضها</td>`;
                 tableBody.appendChild(row);
                 return;
             }
             
-            appState.results.forEach(result => {
+            resultsToShow.forEach(result => {
                 const student = appState.students.find(s => s.id === result.studentId);
                 if (!student) return;
                 
@@ -2109,27 +2573,40 @@
                 name: name,
                 grade: grade,
                 civilId: civilId,
-                committee: committee
+                committee: committee,
+                synced: appState.students[studentIndex].synced && appState.isOnline
             };
             
             appState.students[studentIndex] = updatedStudent;
             
-            // تحديث في Firebase
-            try {
-                await db.collection('students').doc(studentId).update({
-                    name: name,
-                    grade: grade,
-                    civilId: civilId,
-                    committee: committee
-                });
-                
-                updateStudentsTable();
-                document.getElementById('editStudentModal').style.display = 'none';
-                showNotification("تم تحديث بيانات الطالب بنجاح", "success");
-            } catch (error) {
-                console.error("Error updating student:", error);
-                showNotification("حدث خطأ في تحديث بيانات الطالب", "error");
+            // تحديث في Firebase إن كان اتصال متوفر
+            if (appState.isOnline) {
+                try {
+                    await db.collection('students').doc(studentId).update({
+                        name: name,
+                        grade: grade,
+                        civilId: civilId,
+                        committee: committee
+                    });
+                    updatedStudent.synced = true;
+                } catch (error) {
+                    console.error("Error updating student:", error);
+                    updatedStudent.synced = false;
+                }
+            } else {
+                updatedStudent.synced = false;
             }
+            
+            // حفظ في التخزين المحلي
+            saveToLocalStorage('students', appState.students);
+            
+            updateStudentsTable();
+            document.getElementById('editStudentModal').style.display = 'none';
+            
+            const message = appState.isOnline && updatedStudent.synced 
+                ? "تم تحديث بيانات الطالب بنجاح"
+                : "تم تحديث بيانات الطالب (محلياً)";
+            showNotification(message, updatedStudent.synced ? "success" : "warning");
         }
         
         // فتح نموذج تعديل الاختبار
@@ -2181,33 +2658,46 @@
                 code: code,
                 mcqCount: mcqCount,
                 tfCount: tfCount,
-                totalGrade: totalGrade
+                totalGrade: totalGrade,
+                synced: appState.savedTests[testIndex].synced && appState.isOnline
             };
             
             appState.savedTests[testIndex] = updatedTest;
             
-            // تحديث في Firebase
-            try {
-                await db.collection('tests').doc(testId).update({
-                    name: name,
-                    subject: subject,
-                    duration: duration,
-                    teacher: teacher,
-                    code: code,
-                    mcqCount: mcqCount,
-                    tfCount: tfCount,
-                    totalGrade: totalGrade
-                });
-                
-                updateSavedTestsList();
-                loadTestsForAnswerKey();
-                loadTestsForResults();
-                document.getElementById('editTestModal').style.display = 'none';
-                showNotification("تم تحديث بيانات الاختبار بنجاح", "success");
-            } catch (error) {
-                console.error("Error updating test:", error);
-                showNotification("حدث خطأ في تحديث بيانات الاختبار", "error");
+            // تحديث في Firebase إن كان اتصال متوفر
+            if (appState.isOnline) {
+                try {
+                    await db.collection('tests').doc(testId).update({
+                        name: name,
+                        subject: subject,
+                        duration: duration,
+                        teacher: teacher,
+                        code: code,
+                        mcqCount: mcqCount,
+                        tfCount: tfCount,
+                        totalGrade: totalGrade
+                    });
+                    updatedTest.synced = true;
+                } catch (error) {
+                    console.error("Error updating test:", error);
+                    updatedTest.synced = false;
+                }
+            } else {
+                updatedTest.synced = false;
             }
+            
+            // حفظ في التخزين المحلي
+            saveToLocalStorage('tests', appState.savedTests);
+            
+            updateSavedTestsList();
+            loadTestsForAnswerKey();
+            loadTestsForResults();
+            document.getElementById('editTestModal').style.display = 'none';
+            
+            const message = appState.isOnline && updatedTest.synced 
+                ? "تم تحديث بيانات الاختبار بنجاح"
+                : "تم تحديث بيانات الاختبار (محلياً)";
+            showNotification(message, updatedTest.synced ? "success" : "warning");
         }
         
         // ===== دوال الحذف =====
@@ -2217,11 +2707,16 @@
             if (!confirm("هل أنت متأكد من حذف هذا الطالب؟")) return;
             
             try {
-                // حذف من Firebase
-                await db.collection('students').doc(studentId).delete();
+                // حذف من Firebase إن كان اتصال متوفر
+                if (appState.isOnline) {
+                    await db.collection('students').doc(studentId).delete();
+                }
                 
                 // حذف من القائمة المحلية
                 appState.students = appState.students.filter(s => s.id !== studentId);
+                
+                // حفظ في التخزين المحلي
+                saveToLocalStorage('students', appState.students);
                 
                 updateStudentsTable();
                 showNotification("تم حذف الطالب بنجاح", "success");
@@ -2236,11 +2731,16 @@
             if (!confirm("هل أنت متأكد من حذف هذا الاختبار؟")) return;
             
             try {
-                // حذف من Firebase
-                await db.collection('tests').doc(testId).delete();
+                // حذف من Firebase إن كان اتصال متوفر
+                if (appState.isOnline) {
+                    await db.collection('tests').doc(testId).delete();
+                }
                 
                 // حذف من القائمة المحلية
                 appState.savedTests = appState.savedTests.filter(t => t.id !== testId);
+                
+                // حفظ في التخزين المحلي
+                saveToLocalStorage('tests', appState.savedTests);
                 
                 updateSavedTestsList();
                 loadTestsForAnswerKey();
@@ -2253,6 +2753,15 @@
         }
         
         // ===== دوال مساعدة =====
+        
+        function showLoading(message = "جاري التحميل...") {
+            // يمكن إضافة مؤشر تحميل هنا
+            console.log("⏳ " + message);
+        }
+        
+        function hideLoading() {
+            console.log("✅ Loading complete");
+        }
         
         window.sendTestToStudents = function(testId) {
             const test = appState.savedTests.find(t => t.id === testId);
@@ -2301,24 +2810,31 @@
             }
             
             try {
-                // تحديث في Firebase
-                await db.collection('results').doc(resultId).update({
-                    essayGrade: grade,
-                    totalScore: firebase.firestore.FieldValue.increment(grade)
-                });
-                
-                // تحديث في القائمة المحلية
+                // تحديث الدرجة في القائمة المحلية
                 const resultIndex = appState.results.findIndex(r => r.id === resultId);
                 if (resultIndex !== -1) {
                     const oldGrade = appState.results[resultIndex].essayGrade || 0;
                     appState.results[resultIndex].essayGrade = grade;
                     appState.results[resultIndex].totalScore = 
                         (appState.results[resultIndex].totalScore || 0) - oldGrade + grade;
+                    appState.results[resultIndex].synced = appState.isOnline;
                     
                     updateResultsTable();
+                    
+                    // حفظ في Firebase إن كان اتصال متوفر
+                    if (appState.isOnline) {
+                        await db.collection('results').doc(resultId).update({
+                            essayGrade: grade,
+                            totalScore: firebase.firestore.FieldValue.increment(grade - oldGrade)
+                        });
+                        appState.results[resultIndex].synced = true;
+                    }
+                    
+                    // حفظ في التخزين المحلي
+                    saveToLocalStorage('results', appState.results);
+                    
+                    showNotification("تم حفظ درجة السؤال المقالي" + (appState.isOnline ? "" : " (محلياً)"), "success");
                 }
-                
-                showNotification("تم حفظ درجة السؤال المقالي", "success");
             } catch (error) {
                 console.error("Error saving essay grade:", error);
                 showNotification("حدث خطأ في حفظ الدرجة", "error");
@@ -2375,10 +2891,11 @@
             }, 5000);
         }
         
-        function showNotification(message, type) {
+        function showNotification(message, type = "info") {
             // إنشاء إشعار مؤقت
             const notification = document.createElement('div');
-            notification.className = 'message ' + (type === 'success' ? 'success-message' : 'error-message');
+            notification.className = 'message ' + (type === 'success' ? 'success-message' : 
+                                                  type === 'error' ? 'error-message' : '');
             notification.textContent = message;
             notification.style.position = 'fixed';
             notification.style.top = '20px';
@@ -2386,11 +2903,16 @@
             notification.style.transform = 'translateX(-50%)';
             notification.style.zIndex = '1000';
             notification.style.maxWidth = '90%';
+            notification.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
             
             document.body.appendChild(notification);
             
             setTimeout(() => {
-                notification.remove();
+                notification.style.opacity = '0';
+                notification.style.transition = 'opacity 0.5s';
+                setTimeout(() => {
+                    notification.remove();
+                }, 500);
             }, 3000);
         }
     </script>
