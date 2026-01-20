@@ -1812,85 +1812,112 @@
                 await syncManager.syncAllData();
             });
             
-            // ======================= زر حفظ الاختبار - الإصلاح النهائي =======================
-            saveTestInfoBtn.addEventListener('click', async function() {
-                console.log("🔄 بدء عملية حفظ الاختبار...");
-                
-                // التحقق من صحة النموذج
-                if (!validateTestForm()) {
-                    showTestError("يرجى ملء جميع الحقول المطلوبة بشكل صحيح");
-                    return;
-                }
-                
-                // الحصول على القيم من الحقول
-                const testName = document.getElementById('testName').value.trim();
-                const testSubject = document.getElementById('testSubject').value.trim();
-                const testDuration = parseInt(document.getElementById('testDuration').value) || 60;
-                const testTeacher = document.getElementById('testTeacher').value.trim();
-                const testCodeTeacher = document.getElementById('testCodeTeacher').value.trim();
-                const questionsCount = parseInt(document.getElementById('questionsCount').value) || 25;
-                const mcqGradePerQuestion = parseFloat(document.getElementById('mcqGradePerQuestion').value) || 2;
-                const hasEssay = document.getElementById('hasEssayQuestion').value;
-                const essayQuestionText = document.getElementById('essayQuestionText').value.trim();
-                const essayGrade = parseFloat(document.getElementById('essayGrade').value) || 0;
-                const tfQuestionsCount = parseInt(document.getElementById('tfQuestionsCount').value) || 12;
-                const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 1;
-                
-                // التحقق من عدم تكرار كود الاختبار
-                const existingTest = appState.savedTests.find(t => t.code === testCodeTeacher);
-                if (existingTest) {
-                    showTestError(`كود الاختبار "${testCodeTeacher}" مستخدم مسبقاً في اختبار: ${existingTest.name}`, 'testCodeTeacher');
-                    return;
-                }
-                
-                // إنشاء معرف فريد للاختبار
-                const testId = 'test_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                
-                // حساب المجموع الكلي
-                const mcqTotalGrade = questionsCount * mcqGradePerQuestion;
-                const tfTotalGrade = tfQuestionsCount * tfGradePerQuestion;
-                const essayTotalGrade = hasEssay === 'yes' ? essayGrade : 0;
-                const totalGradeCalculated = mcqTotalGrade + tfTotalGrade + essayTotalGrade;
-                
-                // إنشاء كائن الاختبار
-                const newTest = {
-                    id: testId,
-                    name: testName,
-                    subject: testSubject,
-                    duration: testDuration,
-                    teacher: testTeacher,
-                    code: testCodeTeacher,
-                    mcqCount: questionsCount,
-                    mcqGradePerQuestion: mcqGradePerQuestion,
-                    tfCount: tfQuestionsCount,
-                    tfGradePerQuestion: tfGradePerQuestion,
-                    hasEssay: hasEssay === 'yes',
-                    essayQuestionText: hasEssay === 'yes' ? essayQuestionText : '',
-                    essayGrade: hasEssay === 'yes' ? essayGrade : 0,
-                    totalGrade: totalGradeCalculated,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                    status: "active"
-                };
-                
-                console.log("💾 كائن الاختبار الجديد:", newTest);
-                
-                try {
-                    // 1. حفظ محلياً أولاً
-                    appState.savedTests.push(newTest);
-                    saveToLocalStorage('firebase_tests', appState.savedTests);
-                    
-                    console.log("✅ تم حفظ الاختبار محلياً");
-                    
-                    // 2. محاولة الحفظ في Firebase إذا كان هناك اتصال
-                    if (appState.isOnline) {
-                        try {
-                            await db.collection('tests').doc(testId).set(newTest);
-                            console.log("✅ تم حفظ الاختبار في Firebase");
-                        } catch (error) {
-                            console.error("❌ خطأ في حفظ الاختبار في Firebase:", error);
-                        }
-                    }
+           // إصلاح نهائي مبسط لزر حفظ الاختبار
+           saveTestInfoBtn.addEventListener('click', async function() {
+          console.log("🔄 بدء عملية حفظ الاختبار...");
+    
+        try {
+          // جمع البيانات بشكل آمن
+            const getValue = (id, defaultValue = '') => {
+            const element = document.getElementById(id);
+            return element?.value?.trim() || defaultValue;
+        };
+        
+        const testName = getValue('testName');
+        const testSubject = getValue('testSubject');
+        const testDuration = parseInt(getValue('testDuration', '60')) || 60;
+        const testTeacher = getValue('testTeacher');
+        const testCodeTeacher = getValue('testCodeTeacher');
+        
+        // التحقق من الحقول المطلوبة
+        if (!testName || !testSubject || !testTeacher || !testCodeTeacher) {
+            alert("❌ يرجى ملء جميع الحقول المطلوبة");
+            return;
+        }
+        
+        // التحقق من عدم تكرار كود الاختبار
+        const existingTest = appState.savedTests.find(t => t.code === testCodeTeacher);
+        if (existingTest) {
+            alert(`❌ كود الاختبار "${testCodeTeacher}" مستخدم مسبقاً`);
+            return;
+        }
+        
+        // جمع باقي البيانات
+        const questionsCount = parseInt(getValue('questionsCount', '25')) || 25;
+        const mcqGradePerQuestion = parseFloat(getValue('mcqGradePerQuestion', '2')) || 2;
+        const hasEssay = getValue('hasEssayQuestion', 'no') === 'yes';
+        const essayQuestionText = getValue('essayQuestionText');
+        const essayGrade = parseFloat(getValue('essayGrade', '0')) || 0;
+        const tfQuestionsCount = parseInt(getValue('tfQuestionsCount', '12')) || 12;
+        const tfGradePerQuestion = parseFloat(getValue('tfGradePerQuestion', '1')) || 1;
+        
+        // إنشاء معرف فريد للاختبار
+        const testId = 'test_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        
+        // حساب المجموع الكلي
+        const mcqTotalGrade = questionsCount * mcqGradePerQuestion;
+        const tfTotalGrade = tfQuestionsCount * tfGradePerQuestion;
+        const essayTotalGrade = hasEssay ? essayGrade : 0;
+        const totalGradeCalculated = mcqTotalGrade + tfTotalGrade + essayTotalGrade;
+        
+        // إنشاء كائن الاختبار
+        const newTest = {
+            id: testId,
+            name: testName,
+            subject: testSubject,
+            duration: testDuration,
+            teacher: testTeacher,
+            code: testCodeTeacher,
+            mcqCount: questionsCount,
+            mcqGradePerQuestion: mcqGradePerQuestion,
+            tfCount: tfQuestionsCount,
+            tfGradePerQuestion: tfGradePerQuestion,
+            hasEssay: hasEssay,
+            essayQuestionText: hasEssay ? essayQuestionText : '',
+            essayGrade: hasEssay ? essayGrade : 0,
+            totalGrade: totalGradeCalculated,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            status: "active"
+        };
+        
+        console.log("💾 محاولة حفظ الاختبار:", newTest);
+        
+        // 1. حفظ محلياً
+        appState.savedTests.push(newTest);
+        localStorage.setItem('firebase_tests', JSON.stringify(appState.savedTests));
+        console.log("✅ تم حفظ الاختبار محلياً");
+        
+        // 2. محاولة الحفظ في Firebase
+        if (appState.isOnline) {
+            try {
+                await db.collection('tests').doc(testId).set(newTest);
+                console.log("✅ تم حفظ الاختبار في Firebase");
+            } catch (firebaseError) {
+                console.error("⚠️ خطأ في حفظ Firebase، البيانات محفوظة محلياً:", firebaseError);
+            }
+        }
+        
+        // 3. تحديث الواجهة
+        updateSavedTestsList();
+        loadTestsForAnswerKey();
+        loadTestsForResults();
+        
+        // 4. رسالة النجاح
+        alert(`✅ تم حفظ الاختبار بنجاح!\n\nاسم الاختبار: ${testName}\nكود الاختبار: ${testCodeTeacher}`);
+        
+        // 5. مسح الحقول
+        document.getElementById('testName').value = '';
+        document.getElementById('testSubject').value = '';
+        document.getElementById('testCodeTeacher').value = '';
+        
+        showNotification(`تم حفظ الاختبار: ${testName}`, "success");
+        
+    } catch (error) {
+        console.error("❌ خطأ غير متوقع:", error);
+        alert("❌ حدث خطأ غير متوقع أثناء حفظ الاختبار");
+    }
+});
                     
                     // 3. تحديث الواجهة
                     updateSavedTestsList();
