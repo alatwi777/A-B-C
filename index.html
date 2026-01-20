@@ -1889,35 +1889,35 @@
         console.log("✅ تم حفظ الاختبار محلياً");
         
         // 2. محاولة الحفظ في Firebase
-        if (appState.isOnline) {
-            try {
-                await db.collection('tests').doc(testId).set(newTest);
-                console.log("✅ تم حفظ الاختبار في Firebase");
-            } catch (firebaseError) {
-                console.error("⚠️ خطأ في حفظ Firebase، البيانات محفوظة محلياً:", firebaseError);
+                     if (appState.isOnline) {
+                      try {
+                    await db.collection('tests').doc(testId).set(newTest);
+                   console.log("✅ تم حفظ الاختبار في Firebase");
+                   } catch (firebaseError) {
+                   console.error("⚠️ خطأ في حفظ Firebase، البيانات محفوظة محلياً:", firebaseError);
+                 }
+             }
+        
+                  // 3. تحديث الواجهة
+                   updateSavedTestsList();
+                   loadTestsForAnswerKey();
+                   loadTestsForResults();
+         
+                  // 4. رسالة النجاح
+                  alert(`✅ تم حفظ الاختبار بنجاح!\n\nاسم الاختبار: ${testName}\nكود الاختبار: ${testCodeTeacher}`);
+        
+                  // 5. مسح الحقول
+                  document.getElementById('testName').value = '';
+                  document.getElementById('testSubject').value = '';
+                  document.getElementById('testCodeTeacher').value = '';
+        
+                  showNotification(`تم حفظ الاختبار: ${testName}`, "success");
+        
+                } catch (error) {
+                   console.error("❌ خطأ غير متوقع:", error);
+                   alert("❌ حدث خطأ غير متوقع أثناء حفظ الاختبار");
             }
-        }
-        
-        // 3. تحديث الواجهة
-        updateSavedTestsList();
-        loadTestsForAnswerKey();
-        loadTestsForResults();
-        
-        // 4. رسالة النجاح
-        alert(`✅ تم حفظ الاختبار بنجاح!\n\nاسم الاختبار: ${testName}\nكود الاختبار: ${testCodeTeacher}`);
-        
-        // 5. مسح الحقول
-        document.getElementById('testName').value = '';
-        document.getElementById('testSubject').value = '';
-        document.getElementById('testCodeTeacher').value = '';
-        
-        showNotification(`تم حفظ الاختبار: ${testName}`, "success");
-        
-    } catch (error) {
-        console.error("❌ خطأ غير متوقع:", error);
-        alert("❌ حدث خطأ غير متوقع أثناء حفظ الاختبار");
-    }
-});
+       });
                     
                     // 3. تحديث الواجهة
                     updateSavedTestsList();
