@@ -818,6 +818,11 @@
                     <button class="btn btn-warning btn-full" id="testLoginBtn" style="margin-top: 10px;">
                         🧪 اختبار الدخول كطالب
                     </button>
+                    
+                    <!-- زر اختبار الدخول كمعلم -->
+                    <button class="btn btn-info btn-full" id="testTeacherLoginBtn" style="margin-top: 10px;">
+                        👨‍🏫 اختبار الدخول كمعلم
+                    </button>
                 </div>
             </div>
         </div>
@@ -1740,6 +1745,45 @@
                 "success");
         }
 
+        // ======================= دالة تسجيل دخول المعلم - الإصلاح النهائي =======================
+        function handleTeacherLogin(civilId, testCode, loginMessage) {
+            console.log("🔍 محاولة تسجيل دخول معلم:", { civilId, testCode });
+            
+            // التحقق من بيانات تسجيل دخول المعلم
+            if (civilId === "1234" && testCode === "200") {
+                console.log("✅ بيانات تسجيل دخول المعلم صحيحة");
+                
+                appState.currentUser = { 
+                    type: 'teacher', 
+                    civilId: civilId,
+                    id: 'teacher_1234',
+                    name: 'معلم الرياضيات'
+                };
+                appState.userType = 'teacher';
+                
+                // تهيئة واجهة المعلم
+                initTeacherInterface();
+                
+                // تبديل الصفحات
+                document.getElementById('loginPage').style.display = 'none';
+                document.getElementById('teacherPage').style.display = 'block';
+                
+                showMessage(loginMessage, 
+                    `✅ تم تسجيل الدخول بنجاح كمعلم\n\n` +
+                    `👨‍🏫 المعلم: معلم الرياضيات\n` +
+                    `🔢 رمز الدخول: ${civilId}/${testCode}`, 
+                    "success");
+            } else {
+                console.log("❌ بيانات تسجيل دخول المعلم غير صحيحة");
+                showMessage(loginMessage, 
+                    `❌ بيانات المعلم غير صحيحة\n\n` +
+                    `الرجاء استخدام:\n` +
+                    `• السجل المدني: ١٢٣٤ (1234)\n` +
+                    `• كود الاختبار: ٢٠٠ (200)`, 
+                    "error");
+            }
+        }
+
         // ======================= إعداد واجهة المستخدم =======================
         function setupUI() {
             // عناصر واجهة المستخدم
@@ -1762,6 +1806,7 @@
             const sendTestToStudentsBtn = document.getElementById('sendTestToStudentsBtn');
             const quickTestBtn = document.getElementById('quickTestBtn');
             const testLoginBtn = document.getElementById('testLoginBtn');
+            const testTeacherLoginBtn = document.getElementById('testTeacherLoginBtn');
             const autoCorrectBtn = document.getElementById('autoCorrectBtn');
             const saveAnswerKeyBtn = document.getElementById('saveAnswerKeyBtn');
             const generatePrintBtn = document.getElementById('generatePrintBtn');
@@ -1828,6 +1873,20 @@
                     `✅ تم تعبئة بيانات اختبار الدخول:\n` +
                     `👤 الطالب: ${student.name}\n` +
                     `🔢 كود الاختبار: ${test.code}`,
+                    "success"
+                );
+            });
+            
+            // ======== زر اختبار الدخول كمعلم ========
+            testTeacherLoginBtn.addEventListener('click', function() {
+                // تعبئة حقول تسجيل الدخول للمعلم
+                document.getElementById('civilId').value = "1234";
+                document.getElementById('testCode').value = "200";
+                
+                showNotification(
+                    `✅ تم تعبئة بيانات تسجيل دخول المعلم:\n` +
+                    `👨‍🏫 السجل المدني: 1234\n` +
+                    `🔢 كود الاختبار: 200`,
                     "success"
                 );
             });
@@ -2332,23 +2391,6 @@
                 handleStudentLogin(civilId, testCode, loginMessage);
             } else {
                 handleTeacherLogin(civilId, testCode, loginMessage);
-            }
-        }
-
-        // دالة تسجيل دخول المعلم
-        function handleTeacherLogin(civilId, testCode, loginMessage) {
-            if (civilId === "1234" && testCode === "200") {
-                appState.currentUser = { type: 'teacher', civilId: civilId };
-                appState.userType = 'teacher';
-                
-                initTeacherInterface();
-                
-                document.getElementById('loginPage').style.display = 'none';
-                document.getElementById('teacherPage').style.display = 'block';
-                
-                showMessage(loginMessage, "✅ تم تسجيل الدخول بنجاح كمعلم", "success");
-            } else {
-                showMessage(loginMessage, "بيانات المعلم غير صحيحة. استخدم ١٢٣٤ و ٢٠٠", "error");
             }
         }
 
