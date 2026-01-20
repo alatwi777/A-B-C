@@ -479,6 +479,7 @@
             border-radius: 5px;
             margin-bottom: 20px;
             text-align: center;
+            display: none;
         }
         
         .success-message {
@@ -720,6 +721,54 @@
                 padding: 20px;
             }
         }
+        
+        /* تحسينات لحفظ الاختبار */
+        .required-field {
+            border-color: #dc3545 !important;
+            border-width: 2px !important;
+        }
+        
+        .required-label::after {
+            content: " *";
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .btn:disabled {
+            background-color: #6c757d !important;
+            cursor: not-allowed !important;
+            opacity: 0.6 !important;
+        }
+        
+        /* مؤشر حالة المزامنة */
+        .sync-status {
+            position: fixed;
+            top: 60px;
+            right: 10px;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 1001;
+            display: none;
+        }
+        
+        .sync-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .sync-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .sync-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
     </style>
 </head>
 <body>
@@ -727,8 +776,8 @@
         ✓ متصل بالإنترنت
     </div>
     
-    <!-- مؤشر حالة المزامنة الجديد -->
-    <div id="syncStatus" style="position: fixed; top: 60px; right: 10px; padding: 8px 15px; border-radius: 5px; font-size: 14px; display: none; z-index: 1001;">
+    <!-- مؤشر حالة المزامنة -->
+    <div id="syncStatus" class="sync-status" style="display: none;">
         <span id="syncStatusText"></span>
         <span class="loading" style="margin-right: 8px; display: none;" id="syncLoading"></span>
     </div>
@@ -902,27 +951,27 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="testName">اسم الاختبار</label>
+                        <label for="testName" class="required-label">اسم الاختبار</label>
                         <input type="text" id="testName" placeholder="أدخل اسم الاختبار" value="الاختبار النصفي الأول">
                     </div>
                     
                     <div class="form-group">
-                        <label for="testSubject">المادة</label>
+                        <label for="testSubject" class="required-label">المادة</label>
                         <input type="text" id="testSubject" placeholder="أدخل المادة" value="الرياضيات">
                     </div>
                     
                     <div class="form-group">
-                        <label for="testDuration">زمن الاختبار (دقائق)</label>
+                        <label for="testDuration" class="required-label">زمن الاختبار (دقائق)</label>
                         <input type="number" id="testDuration" placeholder="أدخل زمن الاختبار" value="60">
                     </div>
                     
                     <div class="form-group">
-                        <label for="testTeacher">اسم المعلم</label>
+                        <label for="testTeacher" class="required-label">اسم المعلم</label>
                         <input type="text" id="testTeacher" placeholder="أدخل اسم المعلم" value="معلم الرياضيات">
                     </div>
                     
                     <div class="form-group">
-                        <label for="testCodeTeacher">كود الاختبار</label>
+                        <label for="testCodeTeacher" class="required-label">كود الاختبار</label>
                         <input type="text" id="testCodeTeacher" placeholder="أدخل كود الاختبار" value="TEST001">
                     </div>
                     
@@ -1556,21 +1605,11 @@
             loadingElement.style.display = isSyncing ? 'inline-block' : 'none';
             
             if (message.includes('✅')) {
-                statusElement.style.backgroundColor = '#d4edda';
-                statusElement.style.color = '#155724';
-                statusElement.style.border = '1px solid #c3e6cb';
-            } else if (message.includes('🔄')) {
-                statusElement.style.backgroundColor = '#fff3cd';
-                statusElement.style.color = '#856404';
-                statusElement.style.border = '1px solid #ffeaa7';
-            } else if (message.includes('⚠️')) {
-                statusElement.style.backgroundColor = '#fff3cd';
-                statusElement.style.color = '#856404';
-                statusElement.style.border = '1px solid #ffeaa7';
+                statusElement.className = 'sync-status sync-success';
+            } else if (message.includes('🔄') || message.includes('⚠️')) {
+                statusElement.className = 'sync-status sync-warning';
             } else {
-                statusElement.style.backgroundColor = '#f8d7da';
-                statusElement.style.color = '#721c24';
-                statusElement.style.border = '1px solid #f5c6cb';
+                statusElement.className = 'sync-status sync-error';
             }
             
             if (!isSyncing) {
@@ -1579,6 +1618,159 @@
                 }, 5000);
             }
         }
+        
+        // ======================= إصلاح مشكلة حفظ الاختبار =======================
+        
+        // دالة مساعدة لعرض رسائل الاختبار
+        function showTestError(message, fieldId = null) {
+            const messageElement = document.getElementById('testInfoMessage');
+            messageElement.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="color: #dc3545; font-size: 20px;">❌</span>
+                    <span>${message}</span>
+                </div>
+            `;
+            messageElement.className = 'message error-message';
+            messageElement.style.display = 'block';
+            
+            // إبراز الحقل الخطأ
+            if (fieldId) {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.classList.add('required-field');
+                    field.focus();
+                    
+                    // إزالة الإبراز بعد 3 ثواني
+                    setTimeout(() => {
+                        field.classList.remove('required-field');
+                    }, 3000);
+                }
+            }
+            
+            // إخفاء الرسالة بعد 5 ثواني
+            setTimeout(() => {
+                messageElement.style.display = 'none';
+            }, 5000);
+        }
+        
+        function showTestSuccess(message) {
+            const messageElement = document.getElementById('testInfoMessage');
+            messageElement.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="color: #28a745; font-size: 20px;">✅</span>
+                    <span>${message}</span>
+                </div>
+            `;
+            messageElement.className = 'message success-message';
+            messageElement.style.display = 'block';
+            
+            // إخفاء الرسالة بعد 3 ثواني
+            setTimeout(() => {
+                messageElement.style.display = 'none';
+            }, 3000);
+        }
+        
+        // دالة التحقق من صحة نموذج الاختبار
+        function validateTestForm() {
+            const saveTestBtn = document.getElementById('saveTestInfoBtn');
+            let isValid = true;
+            
+            // الحقول المطلوبة الأساسية
+            const requiredFields = [
+                { id: 'testName', name: 'اسم الاختبار' },
+                { id: 'testSubject', name: 'المادة' },
+                { id: 'testDuration', name: 'زمن الاختبار' },
+                { id: 'testTeacher', name: 'اسم المعلم' },
+                { id: 'testCodeTeacher', name: 'كود الاختبار' }
+            ];
+            
+            requiredFields.forEach(field => {
+                const element = document.getElementById(field.id);
+                if (element && !element.value.trim()) {
+                    isValid = false;
+                    element.classList.add('required-field');
+                } else if (element) {
+                    element.classList.remove('required-field');
+                }
+            });
+            
+            // الحقول الرقمية
+            const numericFields = [
+                { id: 'questionsCount', name: 'عدد الأسئلة الاختيارية' },
+                { id: 'mcqGradePerQuestion', name: 'درجة السؤال الاختياري' },
+                { id: 'tfQuestionsCount', name: 'عدد أسئلة الصح والخطأ' },
+                { id: 'tfGradePerQuestion', name: 'درجة سؤال الصح والخطأ' }
+            ];
+            
+            numericFields.forEach(field => {
+                const element = document.getElementById(field.id);
+                if (element) {
+                    const value = parseFloat(element.value) || 0;
+                    if (value <= 0) {
+                        isValid = false;
+                        element.classList.add('required-field');
+                    } else {
+                        element.classList.remove('required-field');
+                    }
+                }
+            });
+            
+            // التحقق من السؤال المقالي
+            const hasEssay = document.getElementById('hasEssayQuestion').value;
+            if (hasEssay === 'yes') {
+                const essayGradeField = document.getElementById('essayGrade');
+                if (essayGradeField) {
+                    const essayGrade = parseFloat(essayGradeField.value) || 0;
+                    if (essayGrade <= 0) {
+                        isValid = false;
+                        essayGradeField.classList.add('required-field');
+                    } else {
+                        essayGradeField.classList.remove('required-field');
+                    }
+                }
+            }
+            
+            // التحقق من تكرار كود الاختبار
+            const testCode = document.getElementById('testCodeTeacher').value.trim();
+            if (testCode) {
+                const existingTest = appState.savedTests.find(t => t.code === testCode);
+                if (existingTest) {
+                    isValid = false;
+                    document.getElementById('testCodeTeacher').classList.add('required-field');
+                }
+            }
+            
+            // تفعيل أو تعطيل الزر
+            saveTestBtn.disabled = !isValid;
+            
+            return isValid;
+        }
+        
+        // تحديث المجموع الكلي
+        function updateTotalGrade() {
+            try {
+                const questionsCount = parseInt(document.getElementById('questionsCount').value) || 0;
+                const mcqGradePerQuestion = parseFloat(document.getElementById('mcqGradePerQuestion').value) || 0;
+                const tfQuestionsCount = parseInt(document.getElementById('tfQuestionsCount').value) || 0;
+                const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 0;
+                const hasEssay = document.getElementById('hasEssayQuestion').value === 'yes';
+                const essayGrade = parseFloat(document.getElementById('essayGrade').value) || 0;
+                
+                const mcqTotal = questionsCount * mcqGradePerQuestion;
+                const tfTotal = tfQuestionsCount * tfGradePerQuestion;
+                const essayTotal = hasEssay ? essayGrade : 0;
+                const total = mcqTotal + tfTotal + essayTotal;
+                
+                document.getElementById('totalMcqGrade').textContent = mcqTotal.toFixed(1);
+                document.getElementById('totalTfGrade').textContent = tfTotal.toFixed(1);
+                document.getElementById('totalEssayGrade').textContent = essayTotal.toFixed(1);
+                document.getElementById('totalGrade').value = total.toFixed(1);
+            } catch (error) {
+                console.error("❌ خطأ في حساب المجموع الكلي:", error);
+            }
+        }
+        
+        // ======================= نهاية الإصلاحات =======================
         
         // إعداد واجهة المستخدم
         function setupUI() {
@@ -1619,6 +1811,168 @@
                 showNotification("جاري مزامنة البيانات...", "info");
                 await syncManager.syncAllData();
             });
+            
+            // ======================= زر حفظ الاختبار - الإصلاح النهائي =======================
+            saveTestInfoBtn.addEventListener('click', async function() {
+                console.log("🔄 بدء عملية حفظ الاختبار...");
+                
+                // التحقق من صحة النموذج
+                if (!validateTestForm()) {
+                    showTestError("يرجى ملء جميع الحقول المطلوبة بشكل صحيح");
+                    return;
+                }
+                
+                // الحصول على القيم من الحقول
+                const testName = document.getElementById('testName').value.trim();
+                const testSubject = document.getElementById('testSubject').value.trim();
+                const testDuration = parseInt(document.getElementById('testDuration').value) || 60;
+                const testTeacher = document.getElementById('testTeacher').value.trim();
+                const testCodeTeacher = document.getElementById('testCodeTeacher').value.trim();
+                const questionsCount = parseInt(document.getElementById('questionsCount').value) || 25;
+                const mcqGradePerQuestion = parseFloat(document.getElementById('mcqGradePerQuestion').value) || 2;
+                const hasEssay = document.getElementById('hasEssayQuestion').value;
+                const essayQuestionText = document.getElementById('essayQuestionText').value.trim();
+                const essayGrade = parseFloat(document.getElementById('essayGrade').value) || 0;
+                const tfQuestionsCount = parseInt(document.getElementById('tfQuestionsCount').value) || 12;
+                const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 1;
+                
+                // التحقق من عدم تكرار كود الاختبار
+                const existingTest = appState.savedTests.find(t => t.code === testCodeTeacher);
+                if (existingTest) {
+                    showTestError(`كود الاختبار "${testCodeTeacher}" مستخدم مسبقاً في اختبار: ${existingTest.name}`, 'testCodeTeacher');
+                    return;
+                }
+                
+                // إنشاء معرف فريد للاختبار
+                const testId = 'test_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                // حساب المجموع الكلي
+                const mcqTotalGrade = questionsCount * mcqGradePerQuestion;
+                const tfTotalGrade = tfQuestionsCount * tfGradePerQuestion;
+                const essayTotalGrade = hasEssay === 'yes' ? essayGrade : 0;
+                const totalGradeCalculated = mcqTotalGrade + tfTotalGrade + essayTotalGrade;
+                
+                // إنشاء كائن الاختبار
+                const newTest = {
+                    id: testId,
+                    name: testName,
+                    subject: testSubject,
+                    duration: testDuration,
+                    teacher: testTeacher,
+                    code: testCodeTeacher,
+                    mcqCount: questionsCount,
+                    mcqGradePerQuestion: mcqGradePerQuestion,
+                    tfCount: tfQuestionsCount,
+                    tfGradePerQuestion: tfGradePerQuestion,
+                    hasEssay: hasEssay === 'yes',
+                    essayQuestionText: hasEssay === 'yes' ? essayQuestionText : '',
+                    essayGrade: hasEssay === 'yes' ? essayGrade : 0,
+                    totalGrade: totalGradeCalculated,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    status: "active"
+                };
+                
+                console.log("💾 كائن الاختبار الجديد:", newTest);
+                
+                try {
+                    // 1. حفظ محلياً أولاً
+                    appState.savedTests.push(newTest);
+                    saveToLocalStorage('firebase_tests', appState.savedTests);
+                    
+                    console.log("✅ تم حفظ الاختبار محلياً");
+                    
+                    // 2. محاولة الحفظ في Firebase إذا كان هناك اتصال
+                    if (appState.isOnline) {
+                        try {
+                            await db.collection('tests').doc(testId).set(newTest);
+                            console.log("✅ تم حفظ الاختبار في Firebase");
+                        } catch (error) {
+                            console.error("❌ خطأ في حفظ الاختبار في Firebase:", error);
+                        }
+                    }
+                    
+                    // 3. تحديث الواجهة
+                    updateSavedTestsList();
+                    loadTestsForAnswerKey();
+                    loadTestsForResults();
+                    
+                    // 4. إظهار رسالة النجاح
+                    showTestSuccess(`تم حفظ الاختبار بنجاح: ${testName}`);
+                    
+                    // 5. مسح الحقول بعد الحفظ الناجح
+                    setTimeout(() => {
+                        document.getElementById('testName').value = "";
+                        document.getElementById('testSubject').value = "";
+                        document.getElementById('testDuration').value = "60";
+                        document.getElementById('testTeacher').value = "";
+                        document.getElementById('testCodeTeacher').value = "";
+                        document.getElementById('questionsCount').value = "25";
+                        document.getElementById('mcqGradePerQuestion').value = "2";
+                        document.getElementById('hasEssayQuestion').value = "no";
+                        document.getElementById('essayQuestionText').value = "";
+                        document.getElementById('essayGrade').value = "20";
+                        document.getElementById('tfQuestionsCount').value = "12";
+                        document.getElementById('tfGradePerQuestion').value = "1";
+                        
+                        // إخفاء حقول المقالي
+                        document.getElementById('essayQuestionField').style.display = 'none';
+                        document.getElementById('essayGradeField').style.display = 'none';
+                        
+                        // تحديث المجموع الكلي
+                        updateTotalGrade();
+                        
+                        // إعادة التحقق من النموذج
+                        validateTestForm();
+                    }, 2000);
+                    
+                    showNotification(`تم حفظ الاختبار بنجاح: ${testName}`, "success");
+                    
+                } catch (error) {
+                    console.error("❌ خطأ غير متوقع في حفظ الاختبار:", error);
+                    showTestError("حدث خطأ غير متوقع أثناء حفظ الاختبار: " + error.message);
+                }
+            });
+            
+            // إضافة مستمعين للأحداث لتحديث النموذج
+            const testFields = ['testName', 'testSubject', 'testDuration', 'testTeacher', 
+                               'testCodeTeacher', 'questionsCount', 'mcqGradePerQuestion', 
+                               'tfQuestionsCount', 'tfGradePerQuestion', 'essayGrade'];
+            
+            testFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.addEventListener('input', function() {
+                        validateTestForm();
+                        updateTotalGrade();
+                    });
+                }
+            });
+            
+            // التحكم في حقول السؤال المقالي
+            const hasEssayQuestion = document.getElementById('hasEssayQuestion');
+            const essayQuestionField = document.getElementById('essayQuestionField');
+            const essayGradeField = document.getElementById('essayGradeField');
+            
+            hasEssayQuestion.addEventListener('change', function() {
+                if (this.value === 'yes') {
+                    essayQuestionField.style.display = 'block';
+                    essayGradeField.style.display = 'block';
+                } else {
+                    essayQuestionField.style.display = 'none';
+                    essayGradeField.style.display = 'none';
+                }
+                validateTestForm();
+                updateTotalGrade();
+            });
+            
+            // استدعاء التحقق أول مرة
+            setTimeout(() => {
+                validateTestForm();
+                updateTotalGrade();
+            }, 100);
+            
+            // ======================= نهاية إصلاح زر حفظ الاختبار =======================
             
             // زر إضافة طالب
             addStudentBtn.addEventListener('click', async function() {
@@ -1756,249 +2110,6 @@
                     showNotification("حدث خطأ في استيراد الملف", "error");
                 }
             });
-            
-            // زر حفظ الاختبار - الإصلاح النهائي
-            saveTestInfoBtn.addEventListener('click', async function() {
-                console.log("🔄 بدء عملية حفظ الاختبار...");
-                
-                // التحقق من أن جميع الحقول مملوءة
-                const requiredFields = ['testName', 'testSubject', 'testTeacher', 'testCodeTeacher'];
-                const emptyFields = [];
-                
-                requiredFields.forEach(field => {
-                    const value = document.getElementById(field).value.trim();
-                    if (!value) {
-                        emptyFields.push(field);
-                    }
-                });
-                
-                if (emptyFields.length > 0) {
-                    showMessage(document.getElementById('testInfoMessage'), 
-                               "يرجى ملء جميع الحقول المطلوبة: " + emptyFields.map(f => {
-                                   const labels = {
-                                       'testName': 'اسم الاختبار',
-                                       'testSubject': 'المادة',
-                                       'testTeacher': 'اسم المعلم',
-                                       'testCodeTeacher': 'كود الاختبار'
-                                   };
-                                   return labels[f];
-                               }).join('، '), 
-                               "error");
-                    return;
-                }
-                
-                // الحصول على القيم من الحقول
-                const testName = document.getElementById('testName').value.trim();
-                const testSubject = document.getElementById('testSubject').value.trim();
-                const testDuration = parseInt(document.getElementById('testDuration').value) || 60;
-                const testTeacher = document.getElementById('testTeacher').value.trim();
-                const testCodeTeacher = document.getElementById('testCodeTeacher').value.trim();
-                const questionsCount = parseInt(document.getElementById('questionsCount').value) || 25;
-                const mcqGradePerQuestion = parseFloat(document.getElementById('mcqGradePerQuestion').value) || 2;
-                const hasEssay = document.getElementById('hasEssayQuestion').value;
-                const essayQuestionText = document.getElementById('essayQuestionText').value.trim();
-                const essayGrade = parseFloat(document.getElementById('essayGrade').value) || 20;
-                const tfQuestionsCount = parseInt(document.getElementById('tfQuestionsCount').value) || 12;
-                const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 1;
-                
-                console.log("📊 بيانات الاختبار المدخلة:", {
-                    testName, testSubject, testDuration, testTeacher, testCodeTeacher,
-                    questionsCount, mcqGradePerQuestion, hasEssay, essayQuestionText,
-                    essayGrade, tfQuestionsCount, tfGradePerQuestion
-                });
-                
-                // التحقق من صحة القيم الرقمية
-                if (testDuration <= 0) {
-                    showMessage(document.getElementById('testInfoMessage'), "يجب أن يكون زمن الاختبار أكبر من صفر", "error");
-                    return;
-                }
-                
-                if (questionsCount <= 0 || tfQuestionsCount <= 0) {
-                    showMessage(document.getElementById('testInfoMessage'), "يجب أن يكون عدد الأسئلة أكبر من صفر", "error");
-                    return;
-                }
-                
-                if (mcqGradePerQuestion <= 0 || tfGradePerQuestion <= 0) {
-                    showMessage(document.getElementById('testInfoMessage'), "يجب أن تكون درجة كل سؤال أكبر من صفر", "error");
-                    return;
-                }
-                
-                if (hasEssay === 'yes' && essayGrade <= 0) {
-                    showMessage(document.getElementById('testInfoMessage'), "يجب أن تكون درجة السؤال المقالي أكبر من صفر", "error");
-                    return;
-                }
-                
-                // التحقق من أن كود الاختبار غير مكرر
-                const existingTest = appState.savedTests.find(t => t.code === testCodeTeacher);
-                if (existingTest) {
-                    showMessage(document.getElementById('testInfoMessage'), 
-                               "كود الاختبار هذا مستخدم مسبقاً في اختبار: " + existingTest.name, 
-                               "error");
-                    return;
-                }
-                
-                // إنشاء معرف فريد للاختبار
-                const testId = Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9);
-                
-                // حساب المجموع الكلي
-                const mcqTotalGrade = questionsCount * mcqGradePerQuestion;
-                const tfTotalGrade = tfQuestionsCount * tfGradePerQuestion;
-                const essayTotalGrade = hasEssay === 'yes' ? essayGrade : 0;
-                const totalGradeCalculated = mcqTotalGrade + tfTotalGrade + essayTotalGrade;
-                
-                console.log("🧮 حساب الدرجات:", {
-                    mcqTotalGrade, tfTotalGrade, essayTotalGrade, totalGradeCalculated
-                });
-                
-                // إنشاء كائن الاختبار
-                const newTest = {
-                    id: testId,
-                    name: testName,
-                    subject: testSubject,
-                    duration: testDuration,
-                    teacher: testTeacher,
-                    code: testCodeTeacher,
-                    mcqCount: questionsCount,
-                    mcqGradePerQuestion: mcqGradePerQuestion,
-                    tfCount: tfQuestionsCount,
-                    tfGradePerQuestion: tfGradePerQuestion,
-                    hasEssay: hasEssay === 'yes',
-                    essayQuestionText: hasEssay === 'yes' ? essayQuestionText : '',
-                    essayGrade: hasEssay === 'yes' ? essayGrade : 0,
-                    totalGrade: totalGradeCalculated,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                    status: "active"
-                };
-                
-                console.log("💾 كائن الاختبار الجديد:", newTest);
-                
-                try {
-                    // 1. حفظ محلياً أولاً
-                    appState.savedTests.push(newTest);
-                    saveToLocalStorage('firebase_tests', appState.savedTests);
-                    
-                    console.log("✅ تم حفظ الاختبار محلياً");
-                    
-                    // 2. محاولة الحفظ في Firebase إذا كان هناك اتصال
-                    let firebaseSuccess = false;
-                    if (appState.isOnline) {
-                        try {
-                            await db.collection('tests').doc(testId).set(newTest);
-                            firebaseSuccess = true;
-                            console.log("✅ تم حفظ الاختبار في Firebase");
-                        } catch (error) {
-                            console.error("❌ خطأ في حفظ الاختبار في Firebase:", error);
-                        }
-                    }
-                    
-                    // 3. تحديث الواجهة
-                    updateSavedTestsList();
-                    loadTestsForAnswerKey();
-                    loadTestsForResults();
-                    
-                    // 4. إظهار رسالة النجاح
-                    let successMessage = "✅ تم حفظ الاختبار بنجاح";
-                    if (firebaseSuccess) {
-                        successMessage += " ومزامنته مع السحابة";
-                    } else if (appState.isOnline) {
-                        successMessage += " محلياً، وسيتم المزامنة لاحقاً";
-                    } else {
-                        successMessage += " محلياً، وسيتم المزامنة عند عودة الاتصال";
-                    }
-                    
-                    showMessage(document.getElementById('testInfoMessage'), successMessage, "success");
-                    
-                    // 5. مسح الحقول بعد الحفظ الناجح
-                    document.getElementById('testName').value = "";
-                    document.getElementById('testSubject').value = "";
-                    document.getElementById('testDuration').value = "60";
-                    document.getElementById('testTeacher').value = "";
-                    document.getElementById('testCodeTeacher').value = "";
-                    document.getElementById('questionsCount').value = "25";
-                    document.getElementById('mcqGradePerQuestion').value = "2";
-                    document.getElementById('hasEssayQuestion').value = "no";
-                    document.getElementById('essayQuestionText').value = "";
-                    document.getElementById('essayGrade').value = "20";
-                    document.getElementById('tfQuestionsCount').value = "12";
-                    document.getElementById('tfGradePerQuestion').value = "1";
-                    
-                    // 6. إخفاء حقول المقالي
-                    document.getElementById('essayQuestionField').style.display = 'none';
-                    document.getElementById('essayGradeField').style.display = 'none';
-                    
-                    // 7. تحديث المجموع الكلي
-                    updateTotalGrade();
-                    
-                    // 8. إخفاء الرسالة بعد 5 ثوان
-                    setTimeout(() => {
-                        document.getElementById('testInfoMessage').style.display = 'none';
-                    }, 5000);
-                    
-                    showNotification("تم حفظ الاختبار بنجاح", "success");
-                    
-                } catch (error) {
-                    console.error("❌ خطأ غير متوقع في حفظ الاختبار:", error);
-                    showMessage(document.getElementById('testInfoMessage'), "حدث خطأ غير متوقع أثناء حفظ الاختبار", "error");
-                }
-            });
-            
-            // التحقق التلقائي من نموذج الاختبار
-            const testFields = ['testName', 'testSubject', 'testDuration', 'testTeacher', 
-                               'testCodeTeacher', 'questionsCount', 'mcqGradePerQuestion', 
-                               'tfQuestionsCount', 'tfGradePerQuestion'];
-            
-            testFields.forEach(fieldId => {
-                const field = document.getElementById(fieldId);
-                if (field) {
-                    field.addEventListener('input', function() {
-                        validateTestForm();
-                    });
-                }
-            });
-            
-            function validateTestForm() {
-                const saveTestBtn = document.getElementById('saveTestInfoBtn');
-                let isValid = true;
-                
-                // التحقق من الحقول الإلزامية
-                const testName = document.getElementById('testName').value.trim();
-                const testSubject = document.getElementById('testSubject').value.trim();
-                const testTeacher = document.getElementById('testTeacher').value.trim();
-                const testCodeTeacher = document.getElementById('testCodeTeacher').value.trim();
-                
-                if (!testName || !testSubject || !testTeacher || !testCodeTeacher) {
-                    isValid = false;
-                }
-                
-                // التحقق من القيم الرقمية
-                const testDuration = parseInt(document.getElementById('testDuration').value) || 0;
-                const questionsCount = parseInt(document.getElementById('questionsCount').value) || 0;
-                const mcqGradePerQuestion = parseFloat(document.getElementById('mcqGradePerQuestion').value) || 0;
-                const tfQuestionsCount = parseInt(document.getElementById('tfQuestionsCount').value) || 0;
-                const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 0;
-                
-                if (testDuration <= 0 || questionsCount <= 0 || mcqGradePerQuestion <= 0 || 
-                    tfQuestionsCount <= 0 || tfGradePerQuestion <= 0) {
-                    isValid = false;
-                }
-                
-                // التحقق من عدم تكرار كود الاختبار
-                if (testCodeTeacher) {
-                    const existingTest = appState.savedTests.find(t => t.code === testCodeTeacher);
-                    if (existingTest) {
-                        isValid = false;
-                    }
-                }
-                
-                // تفعيل أو تعطيل الزر
-                saveTestBtn.disabled = !isValid;
-                saveTestBtn.style.opacity = isValid ? '1' : '0.6';
-                saveTestBtn.style.cursor = isValid ? 'pointer' : 'not-allowed';
-            }
-            
-            // استدعاء التحقق أول مرة
-            validateTestForm();
             
             // زر حفظ مفتاح الإجابة
             saveAnswerKeyBtn.addEventListener('click', async function() {
@@ -2277,34 +2388,6 @@
             generatePrintBtn.addEventListener('click', handleGeneratePrint);
             printBtn.addEventListener('click', () => window.print());
             
-            // التحكم في حقول السؤال المقالي
-            const hasEssayQuestion = document.getElementById('hasEssayQuestion');
-            const essayQuestionField = document.getElementById('essayQuestionField');
-            const essayGradeField = document.getElementById('essayGradeField');
-            
-            hasEssayQuestion.addEventListener('change', function() {
-                if (this.value === 'yes') {
-                    essayQuestionField.style.display = 'block';
-                    essayGradeField.style.display = 'block';
-                    updateTotalGrade();
-                } else {
-                    essayQuestionField.style.display = 'none';
-                    essayGradeField.style.display = 'none';
-                    updateTotalGrade();
-                }
-            });
-            
-            // تحديث المجموع الكلي عند تغيير القيم
-            const gradeInputs = ['questionsCount', 'mcqGradePerQuestion', 'tfQuestionsCount', 
-                                'tfGradePerQuestion', 'essayGrade'];
-            
-            gradeInputs.forEach(inputId => {
-                const input = document.getElementById(inputId);
-                if (input) {
-                    input.addEventListener('input', updateTotalGrade);
-                }
-            });
-            
             // تبديل نوع المستخدم
             studentBtn.addEventListener('click', function() {
                 studentBtn.classList.add('active');
@@ -2414,26 +2497,6 @@
             
             // تهيئة حقول السؤال المقالي
             updateTotalGrade();
-        }
-        
-        // تحديث المجموع الكلي
-        function updateTotalGrade() {
-            const questionsCount = parseInt(document.getElementById('questionsCount').value) || 0;
-            const mcqGradePerQuestion = parseFloat(document.getElementById('mcqGradePerQuestion').value) || 0;
-            const tfQuestionsCount = parseInt(document.getElementById('tfQuestionsCount').value) || 0;
-            const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 0;
-            const hasEssay = document.getElementById('hasEssayQuestion').value === 'yes';
-            const essayGrade = parseFloat(document.getElementById('essayGrade').value) || 0;
-            
-            const mcqTotal = questionsCount * mcqGradePerQuestion;
-            const tfTotal = tfQuestionsCount * tfGradePerQuestion;
-            const essayTotal = hasEssay ? essayGrade : 0;
-            const total = mcqTotal + tfTotal + essayTotal;
-            
-            document.getElementById('totalMcqGrade').textContent = mcqTotal.toFixed(1);
-            document.getElementById('totalTfGrade').textContent = tfTotal.toFixed(1);
-            document.getElementById('totalEssayGrade').textContent = essayTotal.toFixed(1);
-            document.getElementById('totalGrade').value = total.toFixed(1);
         }
         
         // تحديث المجموع الكلي في نموذج التعديل
@@ -2581,7 +2644,7 @@
             
             if (appState.savedTests.length === 0) {
                 noTestsMessage.style.display = 'block';
-                container.innerHTML = '<p id="noTestsMessage">لا توجد اختبارات محفوظة حالياً.</p>';
+                container.innerHTML = '<p id="noTestsMessage">لا توجد اختبارات محفوظة حالياً. قم بإضافة اختبار جديد من تبويب "إضافة اختبار جديد".</p>';
                 return;
             }
             
