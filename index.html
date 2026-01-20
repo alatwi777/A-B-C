@@ -947,7 +947,7 @@
                     <h2>إضافة اختبار جديد</h2>
                     
                     <div class="grades-info">
-                        <strong>ملاحظة:</strong> سيتم حساب المجموع الكلي تلقائياً بناءً على عدد الأسئلة ودرجة كل سؤال.
+                        <strong>ملاحظة:</strong> سيتم حفظ الاختبار وإرساله للطلاب تلقائياً بعد الإنشاء.
                     </div>
                     
                     <div class="form-group">
@@ -1023,14 +1023,15 @@
                         </div>
                     </div>
                     
-                    <button class="btn btn-success btn-full" id="saveTestInfoBtn">حفظ الاختبار</button>
+                    <!-- زر إرسال الاختبار للطلاب (الزر الرئيسي) -->
+                    <button class="btn btn-success btn-full" id="sendTestToStudentsBtn">📤 إرسال الاختبار للطلاب</button>
                     
                     <div class="message" id="testInfoMessage" style="display: none;"></div>
                 </div>
                 
                 <!-- تبويب الاختبارات المحفوظة -->
                 <div id="savedTests" class="tab-content">
-                    <h2>الاختبارات المحفوظة</h2>
+                    <h2>الاختبارات المحفوظة والمرسلة</h2>
                     
                     <div style="margin-bottom: 20px; color: #1a5f7a; font-weight: bold;">
                         <span id="testsCount">0</span> اختبار محفوظ في النظام
@@ -1619,7 +1620,7 @@
             }
         }
         
-        // ======================= إصلاح مشكلة حفظ الاختبار =======================
+        // ======================= زر إرسال الاختبار للطلاب =======================
         
         // دالة مساعدة لعرض رسائل الاختبار
         function showTestError(message, fieldId = null) {
@@ -1672,7 +1673,7 @@
         
         // دالة التحقق من صحة نموذج الاختبار
         function validateTestForm() {
-            const saveTestBtn = document.getElementById('saveTestInfoBtn');
+            const sendTestBtn = document.getElementById('sendTestToStudentsBtn');
             let isValid = true;
             
             // الحقول المطلوبة الأساسية
@@ -1740,8 +1741,14 @@
                 }
             }
             
+            // التحقق من وجود طلاب لإرسال الاختبار لهم
+            if (appState.students.length === 0) {
+                isValid = false;
+                showTestError("لا يوجد طلاب مسجلين في النظام. يرجى إضافة طلاب أولاً.");
+            }
+            
             // تفعيل أو تعطيل الزر
-            saveTestBtn.disabled = !isValid;
+            sendTestBtn.disabled = !isValid;
             
             return isValid;
         }
@@ -1770,137 +1777,128 @@
             }
         }
         
-        // ======================= نهاية الإصلاحات =======================
-        
-        // إعداد واجهة المستخدم
-        function setupUI() {
-            // عناصر واجهة المستخدم
-            const studentBtn = document.getElementById('studentBtn');
-            const teacherBtn = document.getElementById('teacherBtn');
-            const loginBtn = document.getElementById('loginBtn');
-            const civilIdInput = document.getElementById('civilId');
-            const testCodeInput = document.getElementById('testCode');
-            const civilIdLabel = document.getElementById('civilIdLabel');
-            const loginMessage = document.getElementById('loginMessage');
+        // دالة إرسال الاختبار للطلاب
+        async function sendTestToStudents() {
+            console.log("🔄 بدء عملية إرسال الاختبار للطلاب...");
             
-            const studentLogoutBtn = document.getElementById('studentLogoutBtn');
-            const teacherLogoutBtn = document.getElementById('teacherLogoutBtn');
-            const manualSyncBtn = document.getElementById('manualSyncBtn');
+            // التحقق من صحة النموذج
+            if (!validateTestForm()) {
+                showTestError("يرجى ملء جميع الحقول المطلوبة بشكل صحيح");
+                return;
+            }
             
-            const teacherTabs = document.querySelectorAll('.tab-btn');
+            // التحقق من وجود طلاب
+            if (appState.students.length === 0) {
+                showTestError("لا يوجد طلاب مسجلين في النظام. يرجى إضافة طلاب أولاً.");
+                return;
+            }
             
-            const addStudentBtn = document.getElementById('addStudentBtn');
-            const excelFileInput = document.getElementById('excelFileInput');
-            const saveTestInfoBtn = document.getElementById('saveTestInfoBtn');
-            const autoCorrectBtn = document.getElementById('autoCorrectBtn');
-            const saveAnswerKeyBtn = document.getElementById('saveAnswerKeyBtn');
-            const generatePrintBtn = document.getElementById('generatePrintBtn');
-            const printBtn = document.getElementById('printBtn');
-            const loadResultsBtn = document.getElementById('loadResultsBtn');
-            const refreshResultsBtn = document.getElementById('refreshResultsBtn');
+            // الحصول على القيم من الحقول
+            const testName = document.getElementById('testName').value.trim();
+            const testSubject = document.getElementById('testSubject').value.trim();
+            const testDuration = parseInt(document.getElementById('testDuration').value) || 60;
+            const testTeacher = document.getElementById('testTeacher').value.trim();
+            const testCodeTeacher = document.getElementById('testCodeTeacher').value.trim();
+            const questionsCount = parseInt(document.getElementById('questionsCount').value) || 25;
+            const mcqGradePerQuestion = parseFloat(document.getElementById('mcqGradePerQuestion').value) || 2;
+            const hasEssay = document.getElementById('hasEssayQuestion').value;
+            const essayQuestionText = document.getElementById('essayQuestionText').value.trim();
+            const essayGrade = parseFloat(document.getElementById('essayGrade').value) || 0;
+            const tfQuestionsCount = parseInt(document.getElementById('tfQuestionsCount').value) || 12;
+            const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 1;
             
-            const submitTestBtn = document.getElementById('submitTestBtn');
+            // التحقق من عدم تكرار كود الاختبار
+            const existingTest = appState.savedTests.find(t => t.code === testCodeTeacher);
+            if (existingTest) {
+                showTestError(`كود الاختبار "${testCodeTeacher}" مستخدم مسبقاً في اختبار: ${existingTest.name}`, 'testCodeTeacher');
+                return;
+            }
             
-            // زر المزامنة اليدوية
-            manualSyncBtn.addEventListener('click', async function() {
-                if (syncManager.isSyncing) {
-                    showNotification("جاري المزامنة حالياً، يرجى الانتظار", "info");
-                    return;
-                }
-                
-                showNotification("جاري مزامنة البيانات...", "info");
-                await syncManager.syncAllData();
-            });
+            // إنشاء معرف فريد للاختبار
+            const testId = 'test_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             
-            // ======================= زر حفظ الاختبار - الإصلاح النهائي =======================
-            saveTestInfoBtn.addEventListener('click', async function() {
-                console.log("🔄 بدء عملية حفظ الاختبار...");
+            // حساب المجموع الكلي
+            const mcqTotalGrade = questionsCount * mcqGradePerQuestion;
+            const tfTotalGrade = tfQuestionsCount * tfGradePerQuestion;
+            const essayTotalGrade = hasEssay === 'yes' ? essayGrade : 0;
+            const totalGradeCalculated = mcqTotalGrade + tfTotalGrade + essayTotalGrade;
+            
+            // إنشاء كائن الاختبار
+            const newTest = {
+                id: testId,
+                name: testName,
+                subject: testSubject,
+                duration: testDuration,
+                teacher: testTeacher,
+                code: testCodeTeacher,
+                mcqCount: questionsCount,
+                mcqGradePerQuestion: mcqGradePerQuestion,
+                tfCount: tfQuestionsCount,
+                tfGradePerQuestion: tfGradePerQuestion,
+                hasEssay: hasEssay === 'yes',
+                essayQuestionText: hasEssay === 'yes' ? essayQuestionText : '',
+                essayGrade: hasEssay === 'yes' ? essayGrade : 0,
+                totalGrade: totalGradeCalculated,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                status: "active",
+                sentToStudents: true,
+                sentDate: new Date().toISOString(),
+                studentCount: appState.students.length
+            };
+            
+            console.log("💾 كائن الاختبار الجديد:", newTest);
+            
+            try {
+                // 1. حفظ الاختبار محلياً
+                appState.savedTests.push(newTest);
+                saveToLocalStorage('firebase_tests', appState.savedTests);
                 
-                // التحقق من صحة النموذج
-                if (!validateTestForm()) {
-                    showTestError("يرجى ملء جميع الحقول المطلوبة بشكل صحيح");
-                    return;
-                }
+                console.log("✅ تم حفظ الاختبار محلياً");
                 
-                // الحصول على القيم من الحقول
-                const testName = document.getElementById('testName').value.trim();
-                const testSubject = document.getElementById('testSubject').value.trim();
-                const testDuration = parseInt(document.getElementById('testDuration').value) || 60;
-                const testTeacher = document.getElementById('testTeacher').value.trim();
-                const testCodeTeacher = document.getElementById('testCodeTeacher').value.trim();
-                const questionsCount = parseInt(document.getElementById('questionsCount').value) || 25;
-                const mcqGradePerQuestion = parseFloat(document.getElementById('mcqGradePerQuestion').value) || 2;
-                const hasEssay = document.getElementById('hasEssayQuestion').value;
-                const essayQuestionText = document.getElementById('essayQuestionText').value.trim();
-                const essayGrade = parseFloat(document.getElementById('essayGrade').value) || 0;
-                const tfQuestionsCount = parseInt(document.getElementById('tfQuestionsCount').value) || 12;
-                const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 1;
-                
-                // التحقق من عدم تكرار كود الاختبار
-                const existingTest = appState.savedTests.find(t => t.code === testCodeTeacher);
-                if (existingTest) {
-                    showTestError(`كود الاختبار "${testCodeTeacher}" مستخدم مسبقاً في اختبار: ${existingTest.name}`, 'testCodeTeacher');
-                    return;
-                }
-                
-                // إنشاء معرف فريد للاختبار
-                const testId = 'test_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                
-                // حساب المجموع الكلي
-                const mcqTotalGrade = questionsCount * mcqGradePerQuestion;
-                const tfTotalGrade = tfQuestionsCount * tfGradePerQuestion;
-                const essayTotalGrade = hasEssay === 'yes' ? essayGrade : 0;
-                const totalGradeCalculated = mcqTotalGrade + tfTotalGrade + essayTotalGrade;
-                
-                // إنشاء كائن الاختبار
-                const newTest = {
-                    id: testId,
-                    name: testName,
-                    subject: testSubject,
-                    duration: testDuration,
-                    teacher: testTeacher,
-                    code: testCodeTeacher,
-                    mcqCount: questionsCount,
-                    mcqGradePerQuestion: mcqGradePerQuestion,
-                    tfCount: tfQuestionsCount,
-                    tfGradePerQuestion: tfGradePerQuestion,
-                    hasEssay: hasEssay === 'yes',
-                    essayQuestionText: hasEssay === 'yes' ? essayQuestionText : '',
-                    essayGrade: hasEssay === 'yes' ? essayGrade : 0,
-                    totalGrade: totalGradeCalculated,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                    status: "active"
-                };
-                
-                console.log("💾 كائن الاختبار الجديد:", newTest);
-                
-                try {
-                    // 1. حفظ محلياً أولاً
-                    appState.savedTests.push(newTest);
-                    saveToLocalStorage('firebase_tests', appState.savedTests);
-                    
-                    console.log("✅ تم حفظ الاختبار محلياً");
-                    
-                    // 2. محاولة الحفظ في Firebase إذا كان هناك اتصال
-                    if (appState.isOnline) {
-                        try {
-                            await db.collection('tests').doc(testId).set(newTest);
-                            console.log("✅ تم حفظ الاختبار في Firebase");
-                        } catch (error) {
-                            console.error("❌ خطأ في حفظ الاختبار في Firebase:", error);
-                        }
+                // 2. محاولة الحفظ في Firebase إذا كان هناك اتصال
+                if (appState.isOnline) {
+                    try {
+                        await db.collection('tests').doc(testId).set(newTest);
+                        console.log("✅ تم حفظ الاختبار في Firebase");
+                    } catch (error) {
+                        console.error("❌ خطأ في حفظ الاختبار في Firebase:", error);
                     }
-                    
-                    // 3. تحديث الواجهة
+                }
+                
+                // 3. إرسال إشعار للطلاب (محاكاة)
+                const sendTestBtn = document.getElementById('sendTestToStudentsBtn');
+                sendTestBtn.disabled = true;
+                sendTestBtn.innerHTML = '<span class="loading" style="margin-left: 5px;"></span> جاري الإرسال...';
+                
+                // محاكاة عملية الإرسال
+                setTimeout(async () => {
+                    // 4. تحديث الواجهة
                     updateSavedTestsList();
                     loadTestsForAnswerKey();
                     loadTestsForResults();
                     
-                    // 4. إظهار رسالة النجاح
-                    showTestSuccess(`تم حفظ الاختبار بنجاح: ${testName}`);
+                    // 5. إظهار رسالة النجاح
+                    showTestSuccess(`تم إرسال الاختبار "${testName}" بنجاح إلى ${appState.students.length} طالب`);
                     
-                    // 5. مسح الحقول بعد الحفظ الناجح
+                    // 6. إظهار تفاصيل الإرسال
+                    const testDetails = `
+                        ✅ تم إرسال الاختبار بنجاح!
+                        
+                        تفاصيل الاختبار المرسل:
+                        - اسم الاختبار: ${testName}
+                        - المادة: ${testSubject}
+                        - كود الاختبار: ${testCodeTeacher}
+                        - عدد الأسئلة: ${questionsCount} اختياري، ${tfQuestionsCount} صح/خطأ
+                        - المجموع الكلي: ${totalGradeCalculated} درجة
+                        - عدد الطلاب المستهدفين: ${appState.students.length}
+                        
+                        يمكن للطلاب الآن الدخول باستخدام كود الاختبار: ${testCodeTeacher}
+                    `;
+                    
+                    alert(testDetails);
+                    
+                    // 7. مسح الحقول بعد الإرسال الناجح
                     setTimeout(() => {
                         document.getElementById('testName').value = "";
                         document.getElementById('testSubject').value = "";
@@ -1922,17 +1920,73 @@
                         // تحديث المجموع الكلي
                         updateTotalGrade();
                         
+                        // إعادة تفعيل الزر
+                        sendTestBtn.disabled = false;
+                        sendTestBtn.textContent = "📤 إرسال الاختبار للطلاب";
+                        
                         // إعادة التحقق من النموذج
                         validateTestForm();
                     }, 2000);
                     
-                    showNotification(`تم حفظ الاختبار بنجاح: ${testName}`, "success");
+                    showNotification(`تم إرسال الاختبار "${testName}" إلى ${appState.students.length} طالب`, "success");
                     
-                } catch (error) {
-                    console.error("❌ خطأ غير متوقع في حفظ الاختبار:", error);
-                    showTestError("حدث خطأ غير متوقع أثناء حفظ الاختبار: " + error.message);
+                }, 1500); // محاكاة وقت الإرسال
+                
+            } catch (error) {
+                console.error("❌ خطأ غير متوقع في إرسال الاختبار:", error);
+                showTestError("حدث خطأ غير متوقع أثناء إرسال الاختبار: " + error.message);
+                
+                // إعادة تفعيل الزر في حالة الخطأ
+                const sendTestBtn = document.getElementById('sendTestToStudentsBtn');
+                sendTestBtn.disabled = false;
+                sendTestBtn.textContent = "📤 إرسال الاختبار للطلاب";
+            }
+        }
+        
+        // ======================= نهاية دالة إرسال الاختبار =======================
+        
+        // إعداد واجهة المستخدم
+        function setupUI() {
+            // عناصر واجهة المستخدم
+            const studentBtn = document.getElementById('studentBtn');
+            const teacherBtn = document.getElementById('teacherBtn');
+            const loginBtn = document.getElementById('loginBtn');
+            const civilIdInput = document.getElementById('civilId');
+            const testCodeInput = document.getElementById('testCode');
+            const civilIdLabel = document.getElementById('civilIdLabel');
+            const loginMessage = document.getElementById('loginMessage');
+            
+            const studentLogoutBtn = document.getElementById('studentLogoutBtn');
+            const teacherLogoutBtn = document.getElementById('teacherLogoutBtn');
+            const manualSyncBtn = document.getElementById('manualSyncBtn');
+            
+            const teacherTabs = document.querySelectorAll('.tab-btn');
+            
+            const addStudentBtn = document.getElementById('addStudentBtn');
+            const excelFileInput = document.getElementById('excelFileInput');
+            const sendTestToStudentsBtn = document.getElementById('sendTestToStudentsBtn');
+            const autoCorrectBtn = document.getElementById('autoCorrectBtn');
+            const saveAnswerKeyBtn = document.getElementById('saveAnswerKeyBtn');
+            const generatePrintBtn = document.getElementById('generatePrintBtn');
+            const printBtn = document.getElementById('printBtn');
+            const loadResultsBtn = document.getElementById('loadResultsBtn');
+            const refreshResultsBtn = document.getElementById('refreshResultsBtn');
+            
+            const submitTestBtn = document.getElementById('submitTestBtn');
+            
+            // زر المزامنة اليدوية
+            manualSyncBtn.addEventListener('click', async function() {
+                if (syncManager.isSyncing) {
+                    showNotification("جاري المزامنة حالياً، يرجى الانتظار", "info");
+                    return;
                 }
+                
+                showNotification("جاري مزامنة البيانات...", "info");
+                await syncManager.syncAllData();
             });
+            
+            // ======================= زر إرسال الاختبار للطلاب =======================
+            sendTestToStudentsBtn.addEventListener('click', sendTestToStudents);
             
             // إضافة مستمعين للأحداث لتحديث النموذج
             const testFields = ['testName', 'testSubject', 'testDuration', 'testTeacher', 
@@ -1972,7 +2026,7 @@
                 updateTotalGrade();
             }, 100);
             
-            // ======================= نهاية إصلاح زر حفظ الاختبار =======================
+            // ======================= نهاية إعداد زر إرسال الاختبار =======================
             
             // زر إضافة طالب
             addStudentBtn.addEventListener('click', async function() {
@@ -2020,6 +2074,9 @@
                 }
                 
                 updateStudentsTable();
+                
+                // تحديث حالة النموذج بعد إضافة طالب
+                validateTestForm();
                 
                 document.getElementById('addStudentName').value = "";
                 document.getElementById('addStudentGrade').value = "";
@@ -2094,6 +2151,9 @@
                     
                     importStatus.innerHTML = resultMessage;
                     importStatus.className = 'message success-message';
+                    
+                    // تحديث حالة النموذج بعد استيراد الطلاب
+                    validateTestForm();
                     
                     showNotification(resultMessage, "success");
                     
@@ -2659,17 +2719,23 @@
                     `<p><strong>السؤال المقالي:</strong> نعم (${test.essayGrade} درجة)</p>` : 
                     `<p><strong>السؤال المقالي:</strong> لا</p>`;
                 
+                const sentInfo = test.sentToStudents ? 
+                    `<p><strong>حالة الإرسال:</strong> ✅ مرسل إلى ${test.studentCount || appState.students.length} طالب</p>
+                     <p><strong>تاريخ الإرسال:</strong> ${new Date(test.sentDate).toLocaleDateString('ar-SA')}</p>` : 
+                    `<p><strong>حالة الإرسال:</strong> ❌ لم يتم الإرسال</p>`;
+                
                 testCard.innerHTML = `
                     <div class="test-card-header">
                         <h3>${test.name} - ${test.subject}</h3>
                         <div class="test-actions">
-                            <button class="btn btn-success btn-small" onclick="sendTestToStudents('${test.id}')">إرسال للطلاب</button>
+                            ${!test.sentToStudents ? `<button class="btn btn-success btn-small" onclick="sendTestToStudentsFromList('${test.id}')">إرسال للطلاب</button>` : ''}
                             <button class="btn btn-info btn-small" onclick="loadTest('${test.id}')">تحميل</button>
                             <button class="btn btn-warning btn-small" onclick="openEditTestModal('${test.id}')">تعديل</button>
                             <button class="btn btn-danger btn-small" onclick="deleteTest('${test.id}')">حذف</button>
                         </div>
                     </div>
                     <p><strong>كود الاختبار:</strong> ${test.code}</p>
+                    ${sentInfo}
                     <p><strong>عدد الأسئلة:</strong> ${test.mcqCount} اختياري (${test.mcqGradePerQuestion} درجة لكل سؤال)، ${test.tfCount} صح/خطأ (${test.tfGradePerQuestion} درجة لكل سؤال)</p>
                     ${essayInfo}
                     <p><strong>المجموع الكلي:</strong> ${test.totalGrade} درجة</p>
@@ -3497,24 +3563,72 @@
             }
         }
         
-        // وظائف مساعدة
-        window.sendTestToStudents = function(testId) {
+        // وظائف إرسال الاختبار من القائمة
+        window.sendTestToStudentsFromList = async function(testId) {
             const test = appState.savedTests.find(t => t.id === testId);
-            if (test) {
-                const message = `تم إرسال الاختبار "${test.name}" إلى جميع الطلاب المسجلين.\n\n` +
-                               `تفاصيل الاختبار:\n` +
-                               `- المادة: ${test.subject}\n` +
-                               `- الزمن: ${test.duration} دقيقة\n` +
-                               `- عدد الأسئلة: ${test.mcqCount} اختياري (${test.mcqGradePerQuestion} درجة لكل سؤال)\n` +
-                               `- عدد الأسئلة: ${test.tfCount} صح/خطأ (${test.tfGradePerQuestion} درجة لكل سؤال)\n` +
-                               `${test.hasEssay ? `- سؤال مقالي: نعم (${test.essayGrade} درجة)\n` : ''}` +
-                               `- المجموع الكلي: ${test.totalGrade} درجة\n\n` +
-                               `كود الاختبار: ${test.code}\n\n` +
-                               `يرجى إعلام الطلاب باستخدام هذا الكود للدخول إلى الاختبار.`;
-                alert(message);
+            if (!test) return;
+            
+            if (appState.students.length === 0) {
+                showNotification("لا يوجد طلاب مسجلين في النظام. يرجى إضافة طلاب أولاً.", "error");
+                return;
+            }
+            
+            if (!confirm(`هل تريد إرسال الاختبار "${test.name}" إلى ${appState.students.length} طالب؟`)) {
+                return;
+            }
+            
+            try {
+                // تحديث حالة الاختبار لإظهار أنه تم إرساله
+                const testIndex = appState.savedTests.findIndex(t => t.id === testId);
+                if (testIndex !== -1) {
+                    appState.savedTests[testIndex].sentToStudents = true;
+                    appState.savedTests[testIndex].sentDate = new Date().toISOString();
+                    appState.savedTests[testIndex].studentCount = appState.students.length;
+                    appState.savedTests[testIndex].updatedAt = new Date().toISOString();
+                    
+                    saveToLocalStorage('firebase_tests', appState.savedTests);
+                    
+                    if (appState.isOnline) {
+                        try {
+                            await db.collection('tests').doc(testId).update({
+                                sentToStudents: true,
+                                sentDate: new Date().toISOString(),
+                                studentCount: appState.students.length,
+                                updatedAt: new Date().toISOString()
+                            });
+                        } catch (error) {
+                            console.error("❌ خطأ في تحديث حالة الإرسال في Firebase:", error);
+                        }
+                    }
+                    
+                    updateSavedTestsList();
+                    
+                    showNotification(`✅ تم إرسال الاختبار "${test.name}" بنجاح إلى ${appState.students.length} طالب`, "success");
+                    
+                    // إظهار تفاصيل الإرسال
+                    const testDetails = `
+                        ✅ تم إرسال الاختبار بنجاح!
+                        
+                        تفاصيل الاختبار المرسل:
+                        - اسم الاختبار: ${test.name}
+                        - المادة: ${test.subject}
+                        - كود الاختبار: ${test.code}
+                        - عدد الأسئلة: ${test.mcqCount} اختياري، ${test.tfCount} صح/خطأ
+                        - المجموع الكلي: ${test.totalGrade} درجة
+                        - عدد الطلاب المستهدفين: ${appState.students.length}
+                        
+                        يمكن للطلاب الآن الدخول باستخدام كود الاختبار: ${test.code}
+                    `;
+                    
+                    alert(testDetails);
+                }
+            } catch (error) {
+                console.error("❌ خطأ في إرسال الاختبار من القائمة:", error);
+                showNotification("حدث خطأ أثناء إرسال الاختبار", "error");
             }
         }
         
+        // وظائف مساعدة
         window.loadTest = function(testId) {
             const test = appState.savedTests.find(t => t.id === testId);
             if (test) {
