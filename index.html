@@ -2376,13 +2376,13 @@
             const noTestsMessage = document.getElementById('noTestsMessage');
             
             if (appState.savedTests.length === 0) {
-                noTestsMessage.style.display = 'block';
-                container.innerHTML = '<p id="noTestsMessage">لا توجد اختبارات محفوظة حالياً. قم بإضافة اختبار جديد من تبويب "إضافة اختبار جديد".</p>';
+                if (noTestsMessage) noTestsMessage.style.display = 'block';
+                if (container) container.innerHTML = '<p id="noTestsMessage">لا توجد اختبارات محفوظة حالياً. قم بإضافة اختبار جديد من تبويب "إضافة اختبار جديد".</p>';
                 return;
             }
             
-            noTestsMessage.style.display = 'none';
-            container.innerHTML = '';
+            if (noTestsMessage) noTestsMessage.style.display = 'none';
+            if (container) container.innerHTML = '';
             
             appState.savedTests.forEach(test => {
                 const testCard = document.createElement('div');
@@ -2415,7 +2415,7 @@
                     <p><strong>تاريخ الإنشاء:</strong> ${new Date(test.createdAt).toLocaleDateString('ar-SA')}</p>
                 `;
                 
-                container.appendChild(testCard);
+                if (container) container.appendChild(testCard);
             });
             
             updateCounters();
@@ -2589,6 +2589,8 @@
             const statusText = document.getElementById('syncStatusText');
             const loadingElement = document.getElementById('syncLoading');
             
+            if (!statusElement || !statusText) return;
+            
             statusText.textContent = message;
             statusElement.style.display = 'block';
             loadingElement.style.display = isSyncing ? 'inline-block' : 'none';
@@ -2611,6 +2613,8 @@
         // دوال عرض الرسائل
         function showTestError(message) {
             const messageElement = document.getElementById('testInfoMessage');
+            if (!messageElement) return;
+            
             messageElement.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 10px; padding: 15px; background-color: #ffebee; border-radius: 8px; border-right: 4px solid #f44336;">
                     <span style="color: #f44336; font-size: 24px;">❌</span>
@@ -2629,6 +2633,8 @@
 
         function showTestSuccess(message) {
             const messageElement = document.getElementById('testInfoMessage');
+            if (!messageElement) return;
+            
             messageElement.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 10px; padding: 15px; background-color: #e8f5e9; border-radius: 8px; border-right: 4px solid #4caf50;">
                     <span style="color: #4caf50; font-size: 24px;">✅</span>
@@ -2646,6 +2652,7 @@
         }
 
         function showMessage(element, text, type) {
+            if (!element) return;
             element.textContent = text;
             element.className = 'message ' + (type === 'success' ? 'success-message' : 'error-message');
             element.style.display = 'block';
@@ -2684,6 +2691,8 @@
         // تهيئة ورقة التظليل للطالب
         function initStudentShadingSheet(mcqCount = 25, tfCount = 12) {
             const mcqContainer = document.getElementById('mcqQuestions');
+            if (!mcqContainer) return;
+            
             mcqContainer.innerHTML = '';
             
             for (let i = 1; i <= mcqCount; i++) {
@@ -2725,6 +2734,8 @@
             });
             
             const tfContainer = document.getElementById('tfQuestions');
+            if (!tfContainer) return;
+            
             tfContainer.innerHTML = '';
             
             for (let i = 1; i <= tfCount; i++) {
@@ -2759,7 +2770,10 @@
         // تهيئة لوحة الرسم
         function initDrawingCanvas() {
             const canvas = document.getElementById('signatureCanvas');
+            if (!canvas) return;
+            
             const container = canvas.parentElement;
+            if (!container) return;
             
             canvas.width = container.offsetWidth;
             canvas.height = container.offsetHeight;
@@ -2788,6 +2802,8 @@
             const colorPicker = document.getElementById('colorPicker');
             const lineWidth = document.getElementById('lineWidth');
             
+            if (!penTool || !eraserTool) return;
+            
             penTool.addEventListener('click', function() {
                 penTool.classList.add('active');
                 eraserTool.classList.remove('active');
@@ -2806,28 +2822,34 @@
                 signaturePad._isEmpty = true;
             });
             
-            clearDrawing.addEventListener('click', function() {
-                if (confirm("هل تريد مسح الرسم بالكامل؟")) {
-                    signaturePad.clear();
-                    appState.studentAnswers.drawing = null;
-                }
-            });
+            if (clearDrawing) {
+                clearDrawing.addEventListener('click', function() {
+                    if (confirm("هل تريد مسح الرسم بالكامل؟")) {
+                        signaturePad.clear();
+                        appState.studentAnswers.drawing = null;
+                    }
+                });
+            }
             
-            colorPicker.addEventListener('input', function() {
-                if (penTool.classList.contains('active')) {
-                    signaturePad.penColor = this.value;
-                }
-            });
+            if (colorPicker) {
+                colorPicker.addEventListener('input', function() {
+                    if (penTool.classList.contains('active')) {
+                        signaturePad.penColor = this.value;
+                    }
+                });
+            }
             
-            lineWidth.addEventListener('change', function() {
-                if (penTool.classList.contains('active')) {
-                    signaturePad.minWidth = parseInt(this.value) / 3;
-                    signaturePad.maxWidth = parseInt(this.value);
-                } else if (eraserTool.classList.contains('active')) {
-                    signaturePad.minWidth = parseInt(this.value) * 2;
-                    signaturePad.maxWidth = parseInt(this.value) * 3;
-                }
-            });
+            if (lineWidth) {
+                lineWidth.addEventListener('change', function() {
+                    if (penTool.classList.contains('active')) {
+                        signaturePad.minWidth = parseInt(this.value) / 3;
+                        signaturePad.maxWidth = parseInt(this.value);
+                    } else if (eraserTool.classList.contains('active')) {
+                        signaturePad.minWidth = parseInt(this.value) * 2;
+                        signaturePad.maxWidth = parseInt(this.value) * 3;
+                    }
+                });
+            }
             
             signaturePad.addEventListener('endStroke', function() {
                 if (signaturePad.isEmpty()) return;
@@ -2864,6 +2886,8 @@
         // تحميل الاختبارات لتبويب مفتاح الإجابة
         function loadTestsForAnswerKey() {
             const select = document.getElementById('selectTestForAnswerKey');
+            if (!select) return;
+            
             select.innerHTML = '<option value="">-- اختر اختبار --</option>';
             
             appState.savedTests.forEach(test => {
@@ -2884,6 +2908,8 @@
         // تحميل الاختبارات لتبويب النتائج
         function loadTestsForResults() {
             const select = document.getElementById('selectTestResults');
+            if (!select) return;
+            
             select.innerHTML = '<option value="">-- اختر اختبار --</option>';
             
             appState.savedTests.forEach(test => {
@@ -2897,6 +2923,8 @@
         // تحميل الطلاب لتبويب الطباعة
         function loadStudentsForPrint() {
             const select = document.getElementById('selectStudentPrint');
+            if (!select) return;
+            
             select.innerHTML = '<option value="">-- اختر طالب --</option>';
             
             appState.students.forEach(student => {
@@ -2911,7 +2939,8 @@
         function loadAnswerKeyForTest(testId) {
             const test = appState.savedTests.find(t => t.id === testId);
             if (!test) {
-                document.getElementById('teacherShadingSheet').style.display = 'none';
+                const teacherShadingSheet = document.getElementById('teacherShadingSheet');
+                if (teacherShadingSheet) teacherShadingSheet.style.display = 'none';
                 return;
             }
             
@@ -2920,22 +2949,27 @@
             initAnswerKey(test.mcqCount, test.tfCount);
             
             const teacherEssayText = document.getElementById('teacherEssayText');
-            if (test.hasEssay) {
-                teacherEssayText.textContent = test.essayQuestionText || 'يتم تصحيح السؤال المقالي يدوياً من قبل المعلم في تبويب النتائج.';
-            } else {
-                teacherEssayText.textContent = 'لا يوجد سؤال مقالي في هذا الاختبار.';
+            if (teacherEssayText) {
+                if (test.hasEssay) {
+                    teacherEssayText.textContent = test.essayQuestionText || 'يتم تصحيح السؤال المقالي يدوياً من قبل المعلم في تبويب النتائج.';
+                } else {
+                    teacherEssayText.textContent = 'لا يوجد سؤال مقالي في هذا الاختبار.';
+                }
             }
             
             if (appState.answerKey.testId === testId) {
                 loadSavedAnswerKey();
             }
             
-            document.getElementById('teacherShadingSheet').style.display = 'block';
+            const teacherShadingSheet = document.getElementById('teacherShadingSheet');
+            if (teacherShadingSheet) teacherShadingSheet.style.display = 'block';
         }
 
         // تهيئة مفتاح الإجابة
         function initAnswerKey(mcqCount = 25, tfCount = 12) {
             const mcqContainer = document.getElementById('teacherMcqKey');
+            if (!mcqContainer) return;
+            
             mcqContainer.innerHTML = '';
             
             for (let i = 1; i <= mcqCount; i++) {
@@ -2974,6 +3008,8 @@
             });
             
             const tfContainer = document.getElementById('teacherTfKey');
+            if (!tfContainer) return;
+            
             tfContainer.innerHTML = '';
             
             for (let i = 1; i <= tfCount; i++) {
@@ -3108,6 +3144,8 @@
         // تحديث جدول النتائج
         function updateResultsTable(results = null) {
             const tableBody = document.getElementById('resultsTableBody');
+            if (!tableBody) return;
+            
             tableBody.innerHTML = '';
             
             const resultsToShow = results || appState.results;
@@ -3511,6 +3549,8 @@
         // حفظ درجة السؤال المقالي
         window.saveEssayGrade = async function(resultId) {
             const input = document.querySelector(`.grade-input[data-result-id="${resultId}"]`);
+            if (!input) return;
+            
             const grade = parseFloat(input.value) || 0;
             
             const result = appState.results.find(r => r.id === resultId);
@@ -3599,7 +3639,8 @@
                 document.querySelector('.tab-btn[data-tab="printPreview"]').click();
                 
                 setTimeout(() => {
-                    document.getElementById('printContent').style.display = 'block';
+                    const printContent = document.getElementById('printContent');
+                    if (printContent) printContent.style.display = 'block';
                     setTimeout(() => {
                         window.print();
                     }, 500);
@@ -3668,7 +3709,8 @@
             
             document.getElementById('printCorrectionDate').textContent = new Date().toLocaleDateString('ar-SA');
             
-            document.getElementById('printContent').style.display = 'block';
+            const printContent = document.getElementById('printContent');
+            if (printContent) printContent.style.display = 'block';
             
             showNotification("✅ تم إنشاء نموذج الطباعة بنجاح", "success");
         }
