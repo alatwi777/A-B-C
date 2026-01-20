@@ -813,16 +813,6 @@
                     </div>
                     
                     <div class="message" id="loginMessage" style="display: none;"></div>
-                    
-                    <!-- زر اختبار الدخول كطالب -->
-                    <button class="btn btn-warning btn-full" id="testLoginBtn" style="margin-top: 10px;">
-                        🧪 اختبار الدخول كطالب
-                    </button>
-                    
-                    <!-- زر اختبار الدخول كمعلم -->
-                    <button class="btn btn-info btn-full" id="testTeacherLoginBtn" style="margin-top: 10px;">
-                        👨‍🏫 اختبار الدخول كمعلم
-                    </button>
                 </div>
             </div>
         </div>
@@ -1359,22 +1349,10 @@
             // 5. تحديث المجموع الكلي
             updateTotalGrade();
             
-            // 6. إظهار حالة النظام
-            const systemStatus = `
-                ✅ النظام جاهز للاستخدام
-                
-                📊 حالة النظام:
-                • الطلاب المسجلين: ${appState.students.length}
-                • الاختبارات المحفوظة: ${appState.savedTests.length}
-                • حالة الاتصال: ${appState.isOnline ? 'متصل بالإنترنت' : 'غير متصل'}
-                • Firebase: ${appState.firebaseConnected ? 'متصل' : 'غير متصل أو يعمل محلياً'}
-            `;
-            
-            console.log(systemStatus);
-            showNotification("✅ النظام جاهز للاستخدام. ابدأ بإضافة طلاب ثم إنشاء اختبار.", "success");
+            console.log("✅ النظام جاهز للاستخدام");
         });
 
-        // ======================= دالة إرسال الاختبار - الإصلاح النهائي =======================
+        // ======================= دالة إرسال الاختبار =======================
         async function sendTestToStudents() {
             console.log("🔄 بدء عملية إرسال الاختبار للطلاب...");
             
@@ -1392,14 +1370,12 @@
             const tfQuestionsCount = parseInt(document.getElementById('tfQuestionsCount').value) || 12;
             const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 1;
             
-            // ======== التحقق من صحة البيانات ========
-            // 1. التحقق من الحقول المطلوبة
+            // التحقق من صحة البيانات
             if (!testName || !testSubject || !testTeacher || !testCodeTeacher) {
                 showTestError("يرجى ملء جميع الحقول المطلوبة (اسم الاختبار، المادة، المعلم، كود الاختبار)");
                 return;
             }
             
-            // 2. التحقق من الأرقام
             if (questionsCount <= 0 || tfQuestionsCount <= 0) {
                 showTestError("عدد الأسئلة يجب أن يكون أكبر من صفر");
                 return;
@@ -1415,20 +1391,20 @@
                 return;
             }
             
-            // 3. التحقق من عدم تكرار كود الاختبار
+            // التحقق من عدم تكرار كود الاختبار
             const existingTest = appState.savedTests.find(t => t.code === testCodeTeacher);
             if (existingTest) {
                 showTestError(`كود الاختبار "${testCodeTeacher}" مستخدم مسبقاً في اختبار: ${existingTest.name}`);
                 return;
             }
             
-            // 4. التحقق من وجود طلاب
+            // التحقق من وجود طلاب
             if (appState.students.length === 0) {
                 showTestError("لا يوجد طلاب مسجلين في النظام. يرجى إضافة طلاب أولاً.");
                 return;
             }
             
-            // ======== إنشاء كائن الاختبار ========
+            // إنشاء كائن الاختبار
             const testId = 'test_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             
             // حساب المجموع الكلي
@@ -1462,31 +1438,26 @@
             
             console.log("💾 كائن الاختبار الجديد:", newTest);
             
-            // ======== بدء عملية الإرسال ========
+            // بدء عملية الإرسال
             const sendTestBtn = document.getElementById('sendTestToStudentsBtn');
             const originalBtnText = sendTestBtn.innerHTML;
             sendTestBtn.disabled = true;
             sendTestBtn.innerHTML = '<span class="loading" style="margin-left: 5px;"></span> جاري الإرسال...';
             
             try {
-                // ======== 1. حفظ في الذاكرة المحلية ========
+                // 1. حفظ في الذاكرة المحلية
                 appState.savedTests.push(newTest);
                 localStorage.setItem('firebase_tests', JSON.stringify(appState.savedTests));
                 console.log("✅ تم حفظ الاختبار في الذاكرة المحلية");
                 
-                // ======== 2. محاولة الحفظ في Firebase ========
+                // 2. محاولة الحفظ في Firebase
                 let firebaseSuccess = false;
                 if (appState.isOnline) {
                     try {
-                        // أولا: التحقق من اتصال Firebase
                         await testFirebaseConnection();
-                        
-                        // ثانيا: حفظ الاختبار في Firebase
                         await db.collection('tests').doc(testId).set(newTest);
                         console.log("✅ تم حفظ الاختبار في Firebase");
                         firebaseSuccess = true;
-                        
-                        // ثالثا: تحديث قائمة الاختبارات المحلية من Firebase للحصول على أحدث البيانات
                         await syncTestsFromFirebase();
                         
                     } catch (firebaseError) {
@@ -1496,19 +1467,19 @@
                     console.log("ℹ️ لا يوجد اتصال بالإنترنت، تم الحفظ محلياً فقط");
                 }
                 
-                // ======== 3. تحديث الواجهة ========
+                // 3. تحديث الواجهة
                 updateSavedTestsList();
                 loadTestsForAnswerKey();
                 loadTestsForResults();
                 
-                // ======== 4. إظهار رسالة النجاح ========
+                // 4. إظهار رسالة النجاح
                 const successMessage = firebaseSuccess 
                     ? `✅ تم إرسال الاختبار "${testName}" بنجاح إلى ${appState.students.length} طالب ومزامنته مع السحابة`
                     : `✅ تم إرسال الاختبار "${testName}" بنجاح إلى ${appState.students.length} طالب (محلياً)`;
                 
                 showTestSuccess(successMessage);
                 
-                // ======== 5. إظهار تفاصيل الإرسال للمعلم ========
+                // 5. إظهار تفاصيل الإرسال للمعلم
                 const testDetails = `
                     🎉 تم إرسال الاختبار بنجاح!
                     
@@ -1534,12 +1505,11 @@
                     • كود الاختبار: ${testCodeTeacher}
                 `;
                 
-                // عرض التفاصيل في نافذة منبثقة
                 if (confirm(`هل تريد عرض تفاصيل الاختبار المرسل؟\n\n(يمكنك الضغط على "موافق" لرؤية التفاصيل)`)) {
                     alert(testDetails);
                 }
                 
-                // ======== 6. مسح الحقول بعد الإرسال الناجح ========
+                // 6. مسح الحقول بعد الإرسال الناجح
                 setTimeout(() => {
                     // مسح الحقول
                     document.getElementById('testName').value = "";
@@ -1568,7 +1538,7 @@
                     
                 }, 2000);
                 
-                // ======== 7. إظهار إشعار نهائي ========
+                // 7. إظهار إشعار نهائي
                 showNotification(successMessage, "success");
                 
             } catch (error) {
@@ -1589,7 +1559,7 @@
                 if (studentsData) {
                     appState.students = JSON.parse(studentsData);
                 } else {
-                    // بيانات افتراضية للطلاب للاختبار
+                    // بيانات افتراضية للطلاب
                     appState.students = [
                         {
                             id: 'student_1',
@@ -1618,7 +1588,7 @@
                 if (testsData) {
                     appState.savedTests = JSON.parse(testsData);
                 } else {
-                    // اختبار افتراضي للاختبار
+                    // اختبار افتراضي
                     appState.savedTests = [
                         {
                             id: 'test_default',
@@ -1646,7 +1616,7 @@
                     localStorage.setItem('firebase_tests', JSON.stringify(appState.savedTests));
                 }
                 
-                // تحميل باقي البيانات...
+                // تحميل باقي البيانات
                 const answerKeyData = localStorage.getItem('firebase_answerKey');
                 if (answerKeyData) {
                     appState.answerKey = JSON.parse(answerKeyData);
@@ -1668,42 +1638,31 @@
             }
         }
 
-        // ======================= دالة تسجيل دخول الطالب - محسنة =======================
+        // ======================= دالة تسجيل دخول الطالب =======================
         function handleStudentLogin(civilId, testCode, loginMessage) {
             console.log("🔍 محاولة تسجيل دخول طالب:", { civilId, testCode });
             
-            // 1. البحث عن الطالب
+            // البحث عن الطالب
             const student = appState.students.find(s => s.civilId === civilId);
             if (!student) {
-                console.log("❌ الطالب غير موجود:", civilId);
                 showMessage(loginMessage, "❌ السجل المدني غير مسجل في النظام", "error");
                 return;
             }
             
-            console.log("✅ الطالب موجود:", student.name);
-            
-            // 2. البحث عن الاختبار - تحسين البحث
-            let test = null;
-            
-            // البحث أولاً في الاختبارات المحلية
-            test = appState.savedTests.find(t => 
+            // البحث عن الاختبار
+            const test = appState.savedTests.find(t => 
                 t.code === testCode && 
                 (t.status === "active" || t.sentToStudents === true)
             );
             
             if (!test) {
-                console.log("❌ الاختبار غير موجود:", testCode);
-                console.log("📋 الاختبارات المتاحة:", appState.savedTests.map(t => ({ code: t.code, name: t.name, status: t.status })));
                 showMessage(loginMessage, 
-                    `❌ كود الاختبار "${testCode}" غير صحيح أو الاختبار غير مفعل\n\n` +
-                    `الاختبارات المتاحة:\n${appState.savedTests.filter(t => t.sentToStudents).map(t => `• ${t.code} - ${t.name}`).join('\n')}`, 
+                    `❌ كود الاختبار "${testCode}" غير صحيح أو الاختبار غير مفعل`, 
                     "error");
                 return;
             }
             
-            console.log("✅ الاختبار موجود:", test.name);
-            
-            // 3. تحضير بيانات الجلسة
+            // تحضير بيانات الجلسة
             appState.currentUser = { 
                 type: 'student', 
                 civilId: civilId,
@@ -1713,15 +1672,15 @@
             appState.userType = 'student';
             appState.currentTest = test;
             
-            // 4. تحديث واجهة الطالب
+            // تحديث واجهة الطالب
             document.getElementById('studentName').textContent = student.name;
             document.getElementById('studentSubject').textContent = test.subject;
             document.getElementById('studentCommittee').textContent = student.committee;
             
-            // 5. إنشاء ورقة الإجابة
+            // إنشاء ورقة الإجابة
             initStudentShadingSheet(test.mcqCount, test.tfCount);
             
-            // 6. التحقق من وجود سؤال مقالي
+            // التحقق من وجود سؤال مقالي
             const essaySection = document.getElementById('studentEssaySection');
             if (test.hasEssay) {
                 essaySection.style.display = 'block';
@@ -1731,28 +1690,19 @@
                 essaySection.style.display = 'none';
             }
             
-            // 7. تبديل الصفحات
+            // تبديل الصفحات
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('studentPage').style.display = 'block';
             
-            // 8. إظهار رسالة النجاح
-            showMessage(loginMessage, 
-                `✅ تم تسجيل الدخول بنجاح!\n\n` +
-                `👤 الطالب: ${student.name}\n` +
-                `📚 الاختبار: ${test.name}\n` +
-                `🔢 الكود: ${test.code}\n` +
-                `⏱️ الزمن: ${test.duration} دقيقة`, 
-                "success");
+            showMessage(loginMessage, "✅ تم تسجيل الدخول بنجاح!", "success");
         }
 
-        // ======================= دالة تسجيل دخول المعلم - الإصلاح النهائي =======================
+        // ======================= دالة تسجيل دخول المعلم =======================
         function handleTeacherLogin(civilId, testCode, loginMessage) {
             console.log("🔍 محاولة تسجيل دخول معلم:", { civilId, testCode });
             
             // التحقق من بيانات تسجيل دخول المعلم
             if (civilId === "1234" && testCode === "200") {
-                console.log("✅ بيانات تسجيل دخول المعلم صحيحة");
-                
                 appState.currentUser = { 
                     type: 'teacher', 
                     civilId: civilId,
@@ -1768,18 +1718,10 @@
                 document.getElementById('loginPage').style.display = 'none';
                 document.getElementById('teacherPage').style.display = 'block';
                 
-                showMessage(loginMessage, 
-                    `✅ تم تسجيل الدخول بنجاح كمعلم\n\n` +
-                    `👨‍🏫 المعلم: معلم الرياضيات\n` +
-                    `🔢 رمز الدخول: ${civilId}/${testCode}`, 
-                    "success");
+                showMessage(loginMessage, "✅ تم تسجيل الدخول بنجاح كمعلم", "success");
             } else {
-                console.log("❌ بيانات تسجيل دخول المعلم غير صحيحة");
                 showMessage(loginMessage, 
-                    `❌ بيانات المعلم غير صحيحة\n\n` +
-                    `الرجاء استخدام:\n` +
-                    `• السجل المدني: ١٢٣٤ (1234)\n` +
-                    `• كود الاختبار: ٢٠٠ (200)`, 
+                    `❌ بيانات المعلم غير صحيحة\nاستخدم: السجل المدني = 1234 ، كود الاختبار = 200`, 
                     "error");
             }
         }
@@ -1805,8 +1747,6 @@
             const excelFileInput = document.getElementById('excelFileInput');
             const sendTestToStudentsBtn = document.getElementById('sendTestToStudentsBtn');
             const quickTestBtn = document.getElementById('quickTestBtn');
-            const testLoginBtn = document.getElementById('testLoginBtn');
-            const testTeacherLoginBtn = document.getElementById('testTeacherLoginBtn');
             const autoCorrectBtn = document.getElementById('autoCorrectBtn');
             const saveAnswerKeyBtn = document.getElementById('saveAnswerKeyBtn');
             const generatePrintBtn = document.getElementById('generatePrintBtn');
@@ -1816,12 +1756,11 @@
             
             const submitTestBtn = document.getElementById('submitTestBtn');
             
-            // ======== زر إرسال الاختبار للطلاب ========
+            // زر إرسال الاختبار للطلاب
             sendTestToStudentsBtn.addEventListener('click', sendTestToStudents);
             
-            // ======== زر إنشاء اختبار سريع ========
+            // زر إنشاء اختبار سريع
             quickTestBtn.addEventListener('click', function() {
-                // تعبئة الحقول ببيانات افتراضية
                 document.getElementById('testName').value = 'الاختبار التجريبي';
                 document.getElementById('testSubject').value = 'الرياضيات';
                 document.getElementById('testDuration').value = '30';
@@ -1835,69 +1774,21 @@
                 document.getElementById('tfQuestionsCount').value = '5';
                 document.getElementById('tfGradePerQuestion').value = '1';
                 
-                // إظهار حقول المقالي
                 document.getElementById('essayQuestionField').style.display = 'block';
                 document.getElementById('essayGradeField').style.display = 'block';
                 
-                // تحديث المجموع
                 updateTotalGrade();
                 
-                showNotification("✅ تم تعبئة نموذج اختبار سريع. يمكنك الآن إرساله للطلاب.", "success");
+                showNotification("✅ تم تعبئة نموذج اختبار سريع", "success");
             });
             
-            // ======== زر اختبار الدخول كطالب ========
-            testLoginBtn.addEventListener('click', function() {
-                if (appState.students.length === 0) {
-                    showNotification("❌ لا يوجد طلاب مسجلين. أضف طلاب أولاً.", "error");
-                    return;
-                }
-                
-                if (appState.savedTests.length === 0) {
-                    showNotification("❌ لا يوجد اختبارات مرسلة. أرسل اختبار أولاً.", "error");
-                    return;
-                }
-                
-                const student = appState.students[0];
-                const test = appState.savedTests.find(t => t.sentToStudents);
-                
-                if (!test) {
-                    showNotification("❌ لا يوجد اختبارات مرسلة للطلاب.", "error");
-                    return;
-                }
-                
-                // تعبئة حقول تسجيل الدخول
-                document.getElementById('civilId').value = student.civilId;
-                document.getElementById('testCode').value = test.code;
-                
-                showNotification(
-                    `✅ تم تعبئة بيانات اختبار الدخول:\n` +
-                    `👤 الطالب: ${student.name}\n` +
-                    `🔢 كود الاختبار: ${test.code}`,
-                    "success"
-                );
-            });
-            
-            // ======== زر اختبار الدخول كمعلم ========
-            testTeacherLoginBtn.addEventListener('click', function() {
-                // تعبئة حقول تسجيل الدخول للمعلم
-                document.getElementById('civilId').value = "1234";
-                document.getElementById('testCode').value = "200";
-                
-                showNotification(
-                    `✅ تم تعبئة بيانات تسجيل دخول المعلم:\n` +
-                    `👨‍🏫 السجل المدني: 1234\n` +
-                    `🔢 كود الاختبار: 200`,
-                    "success"
-                );
-            });
-            
-            // ======== زر المزامنة اليدوية ========
+            // زر المزامنة اليدوية
             manualSyncBtn.addEventListener('click', async function() {
                 showNotification("جاري مزامنة البيانات...", "info");
                 await syncAllData();
             });
             
-            // ======== إضافة مستمعين للأحداث لتحديث النموذج ========
+            // تحديث النموذج عند تغيير القيم
             const testFields = ['testName', 'testSubject', 'testDuration', 'testTeacher', 
                                'testCodeTeacher', 'questionsCount', 'mcqGradePerQuestion', 
                                'tfQuestionsCount', 'tfGradePerQuestion', 'essayGrade'];
@@ -1911,7 +1802,7 @@
                 }
             });
             
-            // ======== التحكم في حقول السؤال المقالي ========
+            // التحكم في حقول السؤال المقالي
             const hasEssayQuestion = document.getElementById('hasEssayQuestion');
             const essayQuestionField = document.getElementById('essayQuestionField');
             const essayGradeField = document.getElementById('essayGradeField');
@@ -1927,7 +1818,7 @@
                 updateTotalGrade();
             });
             
-            // ======== زر إضافة طالب ========
+            // زر إضافة طالب
             addStudentBtn.addEventListener('click', async function() {
                 const name = document.getElementById('addStudentName').value.trim();
                 const grade = document.getElementById('addStudentGrade').value.trim();
@@ -1980,7 +1871,7 @@
                 document.getElementById('addStudentCommittee').value = "";
             });
             
-            // ======== زر استيراد Excel ========
+            // زر استيراد Excel
             excelFileInput.addEventListener('change', async function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -2064,12 +1955,12 @@
                 }
             });
             
-            // ======== زر تسجيل الدخول ========
+            // زر تسجيل الدخول
             loginBtn.addEventListener('click', function() {
                 handleLogin();
             });
             
-            // ======== زر إنهاء الاختبار للطالب ========
+            // زر إنهاء الاختبار للطالب
             submitTestBtn.addEventListener('click', async function() {
                 if (!confirm("هل أنت متأكد من إنهاء الاختبار؟ لا يمكنك العودة بعد الإنهاء.")) {
                     return;
@@ -2141,7 +2032,7 @@
                 }, 2000);
             });
             
-            // ======== زر التصحيح التلقائي ========
+            // زر التصحيح التلقائي
             autoCorrectBtn.addEventListener('click', async function() {
                 if (!appState.currentTest) {
                     showNotification("يرجى تحميل اختبار أولاً", "error");
@@ -2249,21 +2140,21 @@
                 }
             });
             
-            // ======== زر تحميل النتائج ========
+            // زر تحميل النتائج
             loadResultsBtn.addEventListener('click', handleLoadResults);
             
-            // ======== زر تحديث النتائج ========
+            // زر تحديث النتائج
             refreshResultsBtn.addEventListener('click', function() {
                 if (appState.currentTest) {
                     loadResultsFromStorage(appState.currentTest.id);
                 }
             });
             
-            // ======== بقية الأزرار ========
+            // بقية الأزرار
             generatePrintBtn.addEventListener('click', handleGeneratePrint);
             printBtn.addEventListener('click', () => window.print());
             
-            // ======== تبديل نوع المستخدم ========
+            // تبديل نوع المستخدم
             studentBtn.addEventListener('click', function() {
                 studentBtn.classList.add('active');
                 teacherBtn.classList.remove('active');
@@ -2275,10 +2166,10 @@
                 teacherBtn.classList.add('active');
                 studentBtn.classList.remove('active');
                 civilIdLabel.textContent = "السجل المدني للمعلم";
-                civilIdInput.placeholder = "أدخل ١٢٣٤";
+                civilIdInput.placeholder = "أدخل 1234";
             });
             
-            // ======== تسجيل الخروج ========
+            // تسجيل الخروج
             studentLogoutBtn.addEventListener('click', function() {
                 cleanup();
                 document.getElementById('studentPage').style.display = 'none';
@@ -2297,7 +2188,7 @@
                 loginMessage.style.display = 'none';
             });
             
-            // ======== تبويبات المعلم ========
+            // تبويبات المعلم
             teacherTabs.forEach(tab => {
                 tab.addEventListener('click', function() {
                     const tabId = this.getAttribute('data-tab');
@@ -2314,7 +2205,7 @@
                 });
             });
             
-            // ======== إدارة النماذج ========
+            // إدارة النماذج
             const closeEditStudentModal = document.getElementById('closeEditStudentModal');
             const saveEditStudentBtn = document.getElementById('saveEditStudentBtn');
             const closeEditTestModal = document.getElementById('closeEditTestModal');
@@ -2332,7 +2223,7 @@
             
             saveEditTestBtn.addEventListener('click', saveTestEdit);
             
-            // ======== التحكم في حقول السؤال المقالي في نموذج التعديل ========
+            // التحكم في حقول السؤال المقالي في نموذج التعديل
             const editHasEssayQuestion = document.getElementById('editHasEssayQuestion');
             const editEssayQuestionField = document.getElementById('editEssayQuestionField');
             const editEssayGradeField = document.getElementById('editEssayGradeField');
@@ -2349,7 +2240,7 @@
                 }
             });
             
-            // ======== تحديث المجموع الكلي في نموذج التعديل ========
+            // تحديث المجموع الكلي في نموذج التعديل
             const editGradeInputs = ['editQuestionsCount', 'editMcqGradePerQuestion', 
                                    'editTfQuestionsCount', 'editTfGradePerQuestion', 'editEssayGrade'];
             
@@ -2360,7 +2251,7 @@
                 }
             });
             
-            // ======== إغلاق النماذج عند النقر خارجها ========
+            // إغلاق النماذج عند النقر خارجها
             window.addEventListener('click', (e) => {
                 if (e.target.id === 'editStudentModal') {
                     document.getElementById('editStudentModal').style.display = 'none';
@@ -2370,7 +2261,7 @@
                 }
             });
             
-            // ======== تهيئة حقول السؤال المقالي ========
+            // تهيئة حقول السؤال المقالي
             updateTotalGrade();
         }
 
@@ -2535,7 +2426,6 @@
         // دالة اختبار اتصال Firebase
         async function testFirebaseConnection() {
             try {
-                // محاولة قراءة بيانات بسيطة من Firebase للتحقق من الاتصال
                 const testRef = db.collection('tests').limit(1);
                 await testRef.get();
                 appState.firebaseConnected = true;
@@ -2557,7 +2447,6 @@
                 if (!snapshot.empty) {
                     const cloudTests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     
-                    // دمج الاختبارات المحلية مع السحابية
                     appState.savedTests = mergeTests(appState.savedTests, cloudTests);
                     localStorage.setItem('firebase_tests', JSON.stringify(appState.savedTests));
                     
@@ -2577,7 +2466,6 @@
                 if (!snapshot.empty) {
                     const cloudStudents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     
-                    // دمج الطلاب المحليين مع السحابية
                     appState.students = mergeStudents(appState.students, cloudStudents);
                     localStorage.setItem('firebase_students', JSON.stringify(appState.students));
                     
@@ -2597,7 +2485,6 @@
                 if (!localIds.has(cloudTest.id)) {
                     merged.push(cloudTest);
                 } else {
-                    // تحديث الاختبار إذا كان أحدث في السحابة
                     const localIndex = merged.findIndex(t => t.id === cloudTest.id);
                     const localTest = merged[localIndex];
                     
@@ -2622,7 +2509,6 @@
                 if (!localIds.has(cloudStudent.id)) {
                     merged.push(cloudStudent);
                 } else {
-                    // تحديث الطالب إذا كان أحدث في السحابة
                     const localIndex = merged.findIndex(s => s.id === cloudStudent.id);
                     const localStudent = merged[localIndex];
                     
@@ -2654,7 +2540,6 @@
                     await syncTestsFromFirebase();
                     await syncStudentsFromFirebase();
                     
-                    // تحديث الواجهة
                     updateStudentsTable();
                     updateSavedTestsList();
                     updateCounters();
@@ -3538,7 +3423,6 @@
             }
             
             try {
-                // تحديث حالة الاختبار لإظهار أنه تم إرساله
                 const testIndex = appState.savedTests.findIndex(t => t.id === testId);
                 if (testIndex !== -1) {
                     appState.savedTests[testIndex].sentToStudents = true;
@@ -3565,7 +3449,6 @@
                     
                     showNotification(`✅ تم إرسال الاختبار "${test.name}" بنجاح إلى ${appState.students.length} طالب`, "success");
                     
-                    // إظهار تفاصيل الإرسال
                     const testDetails = `
                         ✅ تم إرسال الاختبار بنجاح!
                         
