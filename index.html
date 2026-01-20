@@ -727,6 +727,12 @@
         ✓ متصل بالإنترنت
     </div>
     
+    <!-- مؤشر حالة المزامنة الجديد -->
+    <div id="syncStatus" style="position: fixed; top: 60px; right: 10px; padding: 8px 15px; border-radius: 5px; font-size: 14px; display: none; z-index: 1001;">
+        <span id="syncStatusText"></span>
+        <span class="loading" style="margin-right: 8px; display: none;" id="syncLoading"></span>
+    </div>
+    
     <div id="app">
         <!-- صفحة تسجيل الدخول -->
         <div id="loginPage" class="login-page">
@@ -826,6 +832,9 @@
                 <header>
                     <h1>لوحة تحكم المعلم</h1>
                     <button class="logout-btn" id="teacherLogoutBtn">تسجيل الخروج</button>
+                    <button class="sync-btn" id="manualSyncBtn" style="position: absolute; left: 100px; top: 20px; background-color: #17a2b8; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                        🔄 مزامنة
+                    </button>
                 </header>
                 
                 <div class="teacher-tabs">
@@ -1251,6 +1260,180 @@
             isOnline: navigator.onLine
         };
         
+        // نظام المزامنة المتكامل
+        const syncManager = {
+            lastSync: null,
+            syncInterval: 30000, // 30 ثانية
+            isSyncing: false,
+            
+            async syncAllData() {
+                if (this.isSyncing || !appState.isOnline) return;
+                
+                this.isSyncing = true;
+                console.log("🔄 بدء مزامنة جميع البيانات...");
+                
+                try {
+                    updateSyncStatus("🔄 جاري مزامنة البيانات...", true);
+                    
+                    // 1. المزامنة من Firebase إلى المحلي
+                    await this.syncFromFirebase();
+                    
+                    // 2. المزامنة من المحلي إلى Firebase
+                    await this.syncToFirebase();
+                    
+                    // 3. تحديث الواجهة
+                    this.updateUI();
+                    
+                    this.lastSync = new Date();
+                    console.log("✅ تمت المزامنة بنجاح:", this.lastSync);
+                    
+                    updateSyncStatus("✅ تمت مزامنة البيانات بنجاح", false);
+                    showNotification("تمت مزامنة البيانات بنجاح", "success");
+                    
+                } catch (error) {
+                    console.error("❌ خطأ في المزامنة:", error);
+                    updateSyncStatus("❌ حدث خطأ في المزامنة", false);
+                    showNotification("حدث خطأ في المزامنة، سيتم إعادة المحاولة لاحقاً", "warning");
+                } finally {
+                    this.isSyncing = false;
+                }
+            },
+            
+            async syncFromFirebase() {
+                if (!appState.isOnline) return;
+                
+                try {
+                    // مزامنة الطلاب
+                    const studentsSnapshot = await db.collection('students').get();
+                    const cloudStudents = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    // دمج البيانات المحلية والسحابية
+                    appState.students = this.mergeData(appState.students, cloudStudents, 'id');
+                    saveToLocalStorage('firebase_students', appState.students);
+                    
+                    // مزامنة الاختبارات
+                    const testsSnapshot = await db.collection('tests').get();
+                    const cloudTests = testsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    appState.savedTests = this.mergeData(appState.savedTests, cloudTests, 'id');
+                    saveToLocalStorage('firebase_tests', appState.savedTests);
+                    
+                    // مزامنة مفتاح الإجابة
+                    const answerKeysSnapshot = await db.collection('answerKeys').get();
+                    if (!answerKeysSnapshot.empty) {
+                        const cloudAnswerKeys = answerKeysSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        const latestAnswerKey = cloudAnswerKeys.reduce((latest, current) => {
+                            return new Date(current.updatedAt) > new Date(latest.updatedAt) ? current : latest;
+                        });
+                        
+                        appState.answerKey = latestAnswerKey;
+                        saveToLocalStorage('firebase_answerKey', appState.answerKey);
+                    }
+                    
+                    // مزامنة النتائج
+                    const resultsSnapshot = await db.collection('results').get();
+                    const cloudResults = resultsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    appState.results = this.mergeData(appState.results, cloudResults, 'id');
+                    saveToLocalStorage('firebase_results', appState.results);
+                    
+                    // مزامنة إجابات الطلاب
+                    const answersSnapshot = await db.collection('studentAnswers').get();
+                    const cloudAnswers = answersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    saveToLocalStorage('firebase_studentAnswers', cloudAnswers);
+                    
+                } catch (error) {
+                    console.error("❌ خطأ في المزامنة من Firebase:", error);
+                    throw error;
+                }
+            },
+            
+            async syncToFirebase() {
+                if (!appState.isOnline) return;
+                
+                try {
+                    // مزامنة الطلاب المحليين
+                    for (const student of appState.students) {
+                        await db.collection('students').doc(student.id).set(student, { merge: true });
+                    }
+                    
+                    // مزامنة الاختبارات المحلية
+                    for (const test of appState.savedTests) {
+                        await db.collection('tests').doc(test.id).set(test, { merge: true });
+                    }
+                    
+                    // مزامنة النتائج المحلية
+                    for (const result of appState.results) {
+                        await db.collection('results').doc(result.id).set(result, { merge: true });
+                    }
+                    
+                    // مزامنة إجابات الطلاب المحلية
+                    const localAnswers = JSON.parse(localStorage.getItem('firebase_studentAnswers') || '[]');
+                    for (const answer of localAnswers) {
+                        await db.collection('studentAnswers').doc(answer.id).set(answer, { merge: true });
+                    }
+                    
+                    // مزامنة مفتاح الإجابة
+                    if (Object.keys(appState.answerKey).length > 0) {
+                        await db.collection('answerKeys').doc(appState.answerKey.id || 'default').set(appState.answerKey, { merge: true });
+                    }
+                    
+                } catch (error) {
+                    console.error("❌ خطأ في المزامنة إلى Firebase:", error);
+                    throw error;
+                }
+            },
+            
+            mergeData(localData, cloudData, keyField) {
+                const merged = [...localData];
+                const localKeys = new Set(localData.map(item => item[keyField]));
+                
+                cloudData.forEach(cloudItem => {
+                    const localIndex = merged.findIndex(item => item[keyField] === cloudItem[keyField]);
+                    
+                    if (localIndex === -1) {
+                        merged.push(cloudItem);
+                    } else {
+                        const localItem = merged[localIndex];
+                        const localTime = new Date(localItem.updatedAt || localItem.createdAt);
+                        const cloudTime = new Date(cloudItem.updatedAt || cloudItem.createdAt);
+                        
+                        if (cloudTime > localTime) {
+                            merged[localIndex] = cloudItem;
+                        }
+                    }
+                });
+                
+                return merged;
+            },
+            
+            updateUI() {
+                updateStudentsTable();
+                updateSavedTestsList();
+                updateCounters();
+                
+                if (appState.currentTest) {
+                    updateResultsTable();
+                }
+            },
+            
+            startAutoSync() {
+                setTimeout(() => this.syncAllData(), 2000);
+                
+                setInterval(() => {
+                    if (appState.isOnline && !this.isSyncing) {
+                        this.syncAllData();
+                    }
+                }, this.syncInterval);
+                
+                window.addEventListener('online', () => {
+                    if (!this.isSyncing) {
+                        this.syncAllData();
+                    }
+                });
+            }
+        };
+        
         // تهيئة التطبيق
         document.addEventListener('DOMContentLoaded', async function() {
             await initApp();
@@ -1269,7 +1452,21 @@
             // تحديث المجموع الكلي للمرة الأولى
             updateTotalGrade();
             
-            showNotification("تم تحميل النظام بنجاح", "success");
+            // بدء المزامنة التلقائية
+            syncManager.startAutoSync();
+            
+            // تحديث حالة المزامنة
+            if (appState.isOnline) {
+                updateSyncStatus("🔄 جاري تحميل أحدث البيانات...", true);
+                setTimeout(async () => {
+                    await syncManager.syncFromFirebase().catch(() => {});
+                    updateSyncStatus("✅ تم تحميل أحدث البيانات من السحابة");
+                }, 1000);
+            } else {
+                updateSyncStatus("⚠️ العمل دون اتصال، البيانات المحفوظة محلياً فقط");
+            }
+            
+            showNotification("تم تحميل النظام بنجاح" + (appState.isOnline ? " والمزامنة نشطة" : " (دون اتصال)"), "success");
         }
         
         // إعداد حالة الاتصال
@@ -1281,11 +1478,12 @@
                 if (appState.isOnline) {
                     statusElement.textContent = "✓ متصل بالإنترنت";
                     statusElement.className = "connection-status online";
-                    showNotification("تم استعادة الاتصال بالإنترنت", "success");
+                    updateSyncStatus("🔄 تم استعادة الاتصال، جاري المزامنة...");
+                    setTimeout(() => syncManager.syncAllData(), 1000);
                 } else {
                     statusElement.textContent = "✗ غير متصل بالإنترنت";
                     statusElement.className = "connection-status offline";
-                    showNotification("فقد الاتصال بالإنترنت، البيانات تحفظ محلياً", "warning");
+                    updateSyncStatus("⚠️ العمل دون اتصال، البيانات تحفظ محلياً");
                 }
                 statusElement.style.display = 'block';
             }
@@ -1332,13 +1530,53 @@
             }
         }
         
-        // حفظ في التخزين المحلي
+        // حفظ في التخزين المحلي مع المزامنة
         function saveToLocalStorage(key, data) {
             try {
                 localStorage.setItem(key, JSON.stringify(data));
                 console.log(`✅ تم حفظ ${key} محلياً`);
+                
+                // بدء المزامنة في الخلفية إذا كان هناك اتصال
+                if (appState.isOnline && !syncManager.isSyncing) {
+                    setTimeout(() => syncManager.syncToFirebase().catch(() => {}), 1000);
+                }
             } catch (error) {
                 console.error(`❌ خطأ في حفظ ${key} محلياً:`, error);
+            }
+        }
+        
+        // تحديث حالة المزامنة
+        function updateSyncStatus(message, isSyncing = false) {
+            const statusElement = document.getElementById('syncStatus');
+            const statusText = document.getElementById('syncStatusText');
+            const loadingElement = document.getElementById('syncLoading');
+            
+            statusText.textContent = message;
+            statusElement.style.display = 'block';
+            loadingElement.style.display = isSyncing ? 'inline-block' : 'none';
+            
+            if (message.includes('✅')) {
+                statusElement.style.backgroundColor = '#d4edda';
+                statusElement.style.color = '#155724';
+                statusElement.style.border = '1px solid #c3e6cb';
+            } else if (message.includes('🔄')) {
+                statusElement.style.backgroundColor = '#fff3cd';
+                statusElement.style.color = '#856404';
+                statusElement.style.border = '1px solid #ffeaa7';
+            } else if (message.includes('⚠️')) {
+                statusElement.style.backgroundColor = '#fff3cd';
+                statusElement.style.color = '#856404';
+                statusElement.style.border = '1px solid #ffeaa7';
+            } else {
+                statusElement.style.backgroundColor = '#f8d7da';
+                statusElement.style.color = '#721c24';
+                statusElement.style.border = '1px solid #f5c6cb';
+            }
+            
+            if (!isSyncing) {
+                setTimeout(() => {
+                    statusElement.style.display = 'none';
+                }, 5000);
             }
         }
         
@@ -1355,6 +1593,7 @@
             
             const studentLogoutBtn = document.getElementById('studentLogoutBtn');
             const teacherLogoutBtn = document.getElementById('teacherLogoutBtn');
+            const manualSyncBtn = document.getElementById('manualSyncBtn');
             
             const teacherTabs = document.querySelectorAll('.tab-btn');
             
@@ -1370,9 +1609,18 @@
             
             const submitTestBtn = document.getElementById('submitTestBtn');
             
-            // ===== إصلاح الأزرار =====
+            // زر المزامنة اليدوية
+            manualSyncBtn.addEventListener('click', async function() {
+                if (syncManager.isSyncing) {
+                    showNotification("جاري المزامنة حالياً، يرجى الانتظار", "info");
+                    return;
+                }
+                
+                showNotification("جاري مزامنة البيانات...", "info");
+                await syncManager.syncAllData();
+            });
             
-            // 1. زر إضافة طالب
+            // زر إضافة طالب
             addStudentBtn.addEventListener('click', async function() {
                 const name = document.getElementById('addStudentName').value.trim();
                 const grade = document.getElementById('addStudentGrade').value.trim();
@@ -1425,7 +1673,7 @@
                 document.getElementById('addStudentCommittee').value = "";
             });
             
-            // 2. زر استيراد Excel
+            // زر استيراد Excel
             excelFileInput.addEventListener('change', async function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -1509,9 +1757,35 @@
                 }
             });
             
-            // 3. زر حفظ الاختبار - الإصلاح النهائي
+            // زر حفظ الاختبار - الإصلاح النهائي
             saveTestInfoBtn.addEventListener('click', async function() {
                 console.log("🔄 بدء عملية حفظ الاختبار...");
+                
+                // التحقق من أن جميع الحقول مملوءة
+                const requiredFields = ['testName', 'testSubject', 'testTeacher', 'testCodeTeacher'];
+                const emptyFields = [];
+                
+                requiredFields.forEach(field => {
+                    const value = document.getElementById(field).value.trim();
+                    if (!value) {
+                        emptyFields.push(field);
+                    }
+                });
+                
+                if (emptyFields.length > 0) {
+                    showMessage(document.getElementById('testInfoMessage'), 
+                               "يرجى ملء جميع الحقول المطلوبة: " + emptyFields.map(f => {
+                                   const labels = {
+                                       'testName': 'اسم الاختبار',
+                                       'testSubject': 'المادة',
+                                       'testTeacher': 'اسم المعلم',
+                                       'testCodeTeacher': 'كود الاختبار'
+                                   };
+                                   return labels[f];
+                               }).join('، '), 
+                               "error");
+                    return;
+                }
                 
                 // الحصول على القيم من الحقول
                 const testName = document.getElementById('testName').value.trim();
@@ -1533,12 +1807,7 @@
                     essayGrade, tfQuestionsCount, tfGradePerQuestion
                 });
                 
-                // التحقق من البيانات
-                if (!testName || !testSubject || !testTeacher || !testCodeTeacher) {
-                    showMessage(document.getElementById('testInfoMessage'), "يرجى ملء جميع الحقول المطلوبة", "error");
-                    return;
-                }
-                
+                // التحقق من صحة القيم الرقمية
                 if (testDuration <= 0) {
                     showMessage(document.getElementById('testInfoMessage'), "يجب أن يكون زمن الاختبار أكبر من صفر", "error");
                     return;
@@ -1562,7 +1831,9 @@
                 // التحقق من أن كود الاختبار غير مكرر
                 const existingTest = appState.savedTests.find(t => t.code === testCodeTeacher);
                 if (existingTest) {
-                    showMessage(document.getElementById('testInfoMessage'), "كود الاختبار هذا مستخدم مسبقاً", "error");
+                    showMessage(document.getElementById('testInfoMessage'), 
+                               "كود الاختبار هذا مستخدم مسبقاً في اختبار: " + existingTest.name, 
+                               "error");
                     return;
                 }
                 
@@ -1672,7 +1943,64 @@
                 }
             });
             
-            // 4. زر حفظ مفتاح الإجابة
+            // التحقق التلقائي من نموذج الاختبار
+            const testFields = ['testName', 'testSubject', 'testDuration', 'testTeacher', 
+                               'testCodeTeacher', 'questionsCount', 'mcqGradePerQuestion', 
+                               'tfQuestionsCount', 'tfGradePerQuestion'];
+            
+            testFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.addEventListener('input', function() {
+                        validateTestForm();
+                    });
+                }
+            });
+            
+            function validateTestForm() {
+                const saveTestBtn = document.getElementById('saveTestInfoBtn');
+                let isValid = true;
+                
+                // التحقق من الحقول الإلزامية
+                const testName = document.getElementById('testName').value.trim();
+                const testSubject = document.getElementById('testSubject').value.trim();
+                const testTeacher = document.getElementById('testTeacher').value.trim();
+                const testCodeTeacher = document.getElementById('testCodeTeacher').value.trim();
+                
+                if (!testName || !testSubject || !testTeacher || !testCodeTeacher) {
+                    isValid = false;
+                }
+                
+                // التحقق من القيم الرقمية
+                const testDuration = parseInt(document.getElementById('testDuration').value) || 0;
+                const questionsCount = parseInt(document.getElementById('questionsCount').value) || 0;
+                const mcqGradePerQuestion = parseFloat(document.getElementById('mcqGradePerQuestion').value) || 0;
+                const tfQuestionsCount = parseInt(document.getElementById('tfQuestionsCount').value) || 0;
+                const tfGradePerQuestion = parseFloat(document.getElementById('tfGradePerQuestion').value) || 0;
+                
+                if (testDuration <= 0 || questionsCount <= 0 || mcqGradePerQuestion <= 0 || 
+                    tfQuestionsCount <= 0 || tfGradePerQuestion <= 0) {
+                    isValid = false;
+                }
+                
+                // التحقق من عدم تكرار كود الاختبار
+                if (testCodeTeacher) {
+                    const existingTest = appState.savedTests.find(t => t.code === testCodeTeacher);
+                    if (existingTest) {
+                        isValid = false;
+                    }
+                }
+                
+                // تفعيل أو تعطيل الزر
+                saveTestBtn.disabled = !isValid;
+                saveTestBtn.style.opacity = isValid ? '1' : '0.6';
+                saveTestBtn.style.cursor = isValid ? 'pointer' : 'not-allowed';
+            }
+            
+            // استدعاء التحقق أول مرة
+            validateTestForm();
+            
+            // زر حفظ مفتاح الإجابة
             saveAnswerKeyBtn.addEventListener('click', async function() {
                 const testId = document.getElementById('selectTestForAnswerKey').value;
                 if (!testId) {
@@ -1752,10 +2080,10 @@
                 }, 5000);
             });
             
-            // 5. زر تسجيل الدخول
+            // زر تسجيل الدخول
             loginBtn.addEventListener('click', handleLogin);
             
-            // 6. زر إنهاء الاختبار للطالب
+            // زر إنهاء الاختبار للطالب
             submitTestBtn.addEventListener('click', async function() {
                 if (!confirm("هل أنت متأكد من إنهاء الاختبار؟ لا يمكنك العودة بعد الإنهاء.")) {
                     return;
@@ -1827,7 +2155,7 @@
                 }, 2000);
             });
             
-            // 7. زر التصحيح التلقائي
+            // زر التصحيح التلقائي
             autoCorrectBtn.addEventListener('click', async function() {
                 if (!appState.currentTest) {
                     showNotification("يرجى تحميل اختبار أولاً", "error");
@@ -1935,22 +2263,21 @@
                 }
             });
             
-            // 8. زر تحميل النتائج
+            // زر تحميل النتائج
             loadResultsBtn.addEventListener('click', handleLoadResults);
             
-            // 9. زر تحديث النتائج
+            // زر تحديث النتائج
             refreshResultsBtn.addEventListener('click', function() {
                 if (appState.currentTest) {
                     loadResultsFromStorage(appState.currentTest.id);
                 }
             });
             
-            // 10. بقية الأزرار
+            // بقية الأزرار
             generatePrintBtn.addEventListener('click', handleGeneratePrint);
             printBtn.addEventListener('click', () => window.print());
             
-            // ===== التحكم في حقول السؤال المقالي =====
-            
+            // التحكم في حقول السؤال المقالي
             const hasEssayQuestion = document.getElementById('hasEssayQuestion');
             const essayQuestionField = document.getElementById('essayQuestionField');
             const essayGradeField = document.getElementById('essayGradeField');
@@ -1977,8 +2304,6 @@
                     input.addEventListener('input', updateTotalGrade);
                 }
             });
-            
-            // ===== الأحداث الأخرى =====
             
             // تبديل نوع المستخدم
             studentBtn.addEventListener('click', function() {
@@ -2031,8 +2356,7 @@
                 });
             });
             
-            // ===== إدارة النماذج =====
-            
+            // إدارة النماذج
             const closeEditStudentModal = document.getElementById('closeEditStudentModal');
             const saveEditStudentBtn = document.getElementById('saveEditStudentBtn');
             const closeEditTestModal = document.getElementById('closeEditTestModal');
@@ -2091,8 +2415,6 @@
             // تهيئة حقول السؤال المقالي
             updateTotalGrade();
         }
-        
-        // ===== وظائف المساعدة =====
         
         // تحديث المجموع الكلي
         function updateTotalGrade() {
@@ -2834,8 +3156,7 @@
             });
         }
         
-        // ===== وظائف قراءة ملفات Excel =====
-        
+        // وظائف قراءة ملفات Excel
         async function readExcelFile(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -2862,8 +3183,7 @@
             });
         }
         
-        // ===== التنظيف =====
-        
+        // التنظيف
         function cleanup() {
             appState.currentUser = null;
             appState.userType = null;
@@ -2872,8 +3192,7 @@
             localStorage.removeItem('current_drawing');
         }
         
-        // ===== وظائف النماذج =====
-        
+        // وظائف النماذج
         window.openEditStudentModal = function(studentId) {
             const student = appState.students.find(s => s.id === studentId);
             if (!student) return;
@@ -3074,8 +3393,7 @@
             showNotification("✅ تم تحديث بيانات الاختبار بنجاح", "success");
         }
         
-        // ===== وظائف الحذف =====
-        
+        // وظائف الحذف
         window.deleteStudent = async function(studentId) {
             if (!confirm("هل أنت متأكد من حذف هذا الطالب؟")) return;
             
@@ -3116,8 +3434,7 @@
             }
         }
         
-        // ===== وظائف مساعدة =====
-        
+        // وظائف مساعدة
         window.sendTestToStudents = function(testId) {
             const test = appState.savedTests.find(t => t.id === testId);
             if (test) {
